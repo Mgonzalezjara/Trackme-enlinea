@@ -3,10 +3,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-export default function LoginForm({ mode }: { mode: string }) {
+interface LoginFormProps {
+  initialMode: "login" | "register";
+}
+
+export default function LoginForm({ initialMode }: LoginFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isRegistering, setIsRegistering] = useState(mode === "register");
+  const [isRegistering, setIsRegistering] = useState(initialMode === "register");
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
@@ -50,7 +54,10 @@ export default function LoginForm({ mode }: { mode: string }) {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
-          <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded">
+          <button
+            type="submit"
+            className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded transition"
+          >
             {isRegistering ? "Registrarse" : "Iniciar sesión"}
           </button>
         </form>
