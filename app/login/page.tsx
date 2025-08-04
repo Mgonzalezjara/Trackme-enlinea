@@ -1,6 +1,6 @@
 "use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 export default function Page() {
@@ -8,27 +8,29 @@ export default function Page() {
   const [password, setPassword] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const mode = searchParams.get("mode");
+    if (mode === "register") setIsRegistering(true);
+    else setIsRegistering(false);
+  }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
     if (isRegistering) {
-      // Registro con confirmación
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/login`, // Redirige tras confirmar
-        },
+        options: { emailRedirectTo: `${window.location.origin}/login` },
       });
-
       if (error) return alert(error.message);
       alert("Registro exitoso. Revisa tu correo y confirma tu cuenta.");
     } else {
-      // Login
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) return alert(error.message);
-      router.push("/dashboard"); // Ir al dashboard
+      router.push("/dashboard");
     }
   }
 
