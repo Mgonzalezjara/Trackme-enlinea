@@ -4,20 +4,34 @@ import { supabase } from "@/lib/supabaseClient";
 import { Line } from "react-chartjs-2";
 import "chart.js/auto";
 
-type Goal = {
+interface Goal {
   daily_calories: number;
   deficit_level: string;
-};
+}
+
+interface User {
+  id: string;
+  email: string;
+}
+
+interface MealFood {
+  calories: number;
+}
+
+interface DailyMeal {
+  date: string;
+  meal_foods: MealFood[];
+}
 
 export default function ProgressPage() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [goal, setGoal] = useState<Goal | null>(null);
   const [progressData, setProgressData] = useState<{ days: string[]; calories: number[] }>({
     days: [],
     calories: [],
   });
   const [detailedDays, setDetailedDays] = useState<{ date: string; calories: number }[]>([]);
-  const [range, setRange] = useState(7); // default 7 days
+  const [range, setRange] = useState(7);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -25,9 +39,8 @@ export default function ProgressPage() {
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session) return;
       const userId = sessionData.session.user.id;
-      setUser(sessionData.session.user);
+      setUser({ id: userId, email: sessionData.session.user.email ?? "" });
 
-      // ✅ Goal actual
       const { data: goalData } = await supabase
         .from("goals")
         .select("*")
@@ -42,14 +55,13 @@ export default function ProgressPage() {
     load();
   }, [range]);
 
-  async function fetchProgress(userId: string, goalData: any) {
+  async function fetchProgress(userId: string, goalData: Goal | null) {
     if (!goalData) return;
 
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - range);
     const startISO = startDate.toISOString().split("T")[0];
 
-    // ✅ Traer comidas del rango
     const { data: mealsData } = await supabase
       .from("daily_meals")
       .select("date, meal_foods(calories)")
@@ -57,15 +69,12 @@ export default function ProgressPage() {
       .gte("date", startISO)
       .order("date", { ascending: true });
 
-    // Agrupar por fecha y sumar calorías
     const grouped: { [key: string]: number } = {};
-    mealsData?.forEach((meal) => {
-      const date = meal.date;
-      const calories = meal.meal_foods.reduce((sum: number, f: any) => sum + (f.calories || 0), 0);
-      grouped[date] = (grouped[date] || 0) + calories;
+    mealsData?.forEach((meal: DailyMeal) => {
+      const calories = meal.meal_foods.reduce((sum, f) => sum + (f.calories || 0), 0);
+      grouped[meal.date] = (grouped[meal.date] || 0) + calories;
     });
 
-    // Crear arreglo de progreso (todos los días del rango)
     const days: string[] = [];
     const calories: number[] = [];
     const detailed: { date: string; calories: number }[] = [];
@@ -74,12 +83,11 @@ export default function ProgressPage() {
       const date = new Date();
       date.setDate(date.getDate() - (range - i));
       const iso = date.toISOString().split("T")[0];
-      const label = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const label = date.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
 
       days.push(label);
       calories.push(grouped[iso] || 0);
 
-      // Solo agregar a la tabla días con registros
       if (grouped[iso]) {
         detailed.push({ date: label, calories: grouped[iso] });
       }
@@ -89,28 +97,29 @@ export default function ProgressPage() {
     setDetailedDays(detailed);
   }
 
-  // 🔥 Cálculos de sumatorias
   const totalConsumed = detailedDays.reduce((sum, d) => sum + d.calories, 0);
   const totalGoal = goal ? goal.daily_calories * detailedDays.length : 0;
   const difference = totalConsumed - totalGoal;
 
-  if (loading) return <p className="text-gray-300 p-6">Loading...</p>;
+  if (loading) return <p className="text-gray-300 p-6">Cargando...</p>;
 
   return (
     <div className="max-w-3xl mx-auto bg-gray-900 text-gray-100 p-6 rounded-lg shadow">
-      <h2 className="text-2xl font-bold mb-4 text-white">Progress Overview</h2>
+      <h2 className="text-2xl font-bold mb-4 text-white">Resumen de Progreso</h2>
 
       {!goal ? (
         <p className="text-red-400 italic">
-          ⚠️ No active goal found. Set your goal in Profile first.
+          ⚠️ No se encontró una meta activa. Establece tu meta en el perfil primero.
         </p>
       ) : (
         <>
           {/* Meta actual */}
           <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 mb-6">
-            <p><span className="font-bold">Active Goal:</span> {Math.round(goal.daily_calories)} kcal/day ({goal.deficit_level})</p>
+            <p>
+              <span className="font-bold">Meta activa:</span> {Math.round(goal.daily_calories)} kcal/día ({goal.deficit_level})
+            </p>
             <p className="text-sm text-gray-400">
-              Tracking last {range} days (only days with meals are summed in stats).
+              Mostrando los últimos {range} días (solo se suman los días con comidas registradas).
             </p>
           </div>
 
@@ -122,33 +131,33 @@ export default function ProgressPage() {
                 onClick={() => setRange(r)}
                 className={`px-4 py-2 rounded ${range === r ? "bg-blue-600 text-white" : "bg-gray-700 hover:bg-gray-600"}`}
               >
-                {r} days
+                {r} días
               </button>
             ))}
           </div>
 
-          {/* 🔥 Resumen total */}
+          {/* Resumen total */}
           <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 mb-6">
-            <p><span className="font-bold">Days with meals:</span> {detailedDays.length}</p>
-            <p><span className="font-bold">Total Consumed:</span> {Math.round(totalConsumed)} kcal</p>
-            <p><span className="font-bold">Goal for those days:</span> {Math.round(totalGoal)} kcal</p>
+            <p><span className="font-bold">Días con comidas:</span> {detailedDays.length}</p>
+            <p><span className="font-bold">Calorías consumidas:</span> {Math.round(totalConsumed)} kcal</p>
+            <p><span className="font-bold">Meta total para esos días:</span> {Math.round(totalGoal)} kcal</p>
             <p>
-              <span className="font-bold">Difference:</span>{" "}
+              <span className="font-bold">Diferencia:</span>{" "}
               <span className={difference > 0 ? "text-red-400" : "text-green-400"}>
-                {difference > 0 ? `+${Math.round(difference)} kcal (over goal)` : `${Math.round(difference)} kcal (deficit)`}
+                {difference > 0 ? `+${Math.round(difference)} kcal (sobre la meta)` : `${Math.round(difference)} kcal (déficit)`}
               </span>
             </p>
           </div>
 
-          {/* Tabla de días con comidas */}
+          {/* Tabla de días */}
           <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 mb-6">
-            <h3 className="text-lg font-semibold mb-3">Calories by Day</h3>
+            <h3 className="text-lg font-semibold mb-3">Calorías por día</h3>
             {detailedDays.length > 0 ? (
               <table className="w-full border-collapse border border-gray-700 text-sm">
                 <thead>
                   <tr className="bg-gray-700 text-gray-200">
-                    <th className="border border-gray-700 p-2 text-left">Date</th>
-                    <th className="border border-gray-700 p-2 text-right">Calories</th>
+                    <th className="border border-gray-700 p-2 text-left">Fecha</th>
+                    <th className="border border-gray-700 p-2 text-right">Calorías</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -161,18 +170,18 @@ export default function ProgressPage() {
                 </tbody>
               </table>
             ) : (
-              <p className="text-gray-400 italic">No meals logged in this range.</p>
+              <p className="text-gray-400 italic">No hay comidas registradas en este rango.</p>
             )}
           </div>
 
-          {/* Chart */}
+          {/* Gráfico */}
           <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
             <Line
               data={{
                 labels: progressData.days,
                 datasets: [
                   {
-                    label: "Calories Consumed",
+                    label: "Calorías consumidas",
                     data: progressData.calories,
                     borderColor: "#4ade80",
                     backgroundColor: "rgba(74, 222, 128, 0.3)",
@@ -180,7 +189,7 @@ export default function ProgressPage() {
                     tension: 0.3,
                   },
                   {
-                    label: "Daily Goal",
+                    label: "Meta diaria",
                     data: Array(progressData.days.length).fill(goal.daily_calories),
                     borderColor: "#60a5fa",
                     borderDash: [5, 5],

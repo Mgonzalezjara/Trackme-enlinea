@@ -25,18 +25,49 @@ interface Meal {
   meal_foods: FoodItem[];
 }
 
+interface Goal {
+  daily_calories: number;
+}
+
+interface Food {
+  id: string;
+  name: string;
+  calories: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+  category_id: string;
+}
+
+interface Category {
+  id: string;
+  name: string;
+}
+
+interface Preview {
+  calories: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+}
+
+interface User {
+  id: string;
+  email: string;
+}
+
 export default function DailyPage() {
-  const [user, setUser] = useState<any>(null);
-  const [goal, setGoal] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [goal, setGoal] = useState<Goal | null>(null);
   const [meals, setMeals] = useState<Meal[]>([]);
-  const [foods, setFoods] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
+  const [foods, setFoods] = useState<Food[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [newMealType, setNewMealType] = useState("breakfast");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedFood, setSelectedFood] = useState("");
   const [quantity, setQuantity] = useState("");
-  const [preview, setPreview] = useState<any>(null);
+  const [preview, setPreview] = useState<Preview | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
 
@@ -45,7 +76,7 @@ export default function DailyPage() {
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData.session) return;
       const userId = sessionData.session.user.id;
-      setUser(sessionData.session.user);
+      setUser({ id: userId, email: sessionData.session.user.email ?? "" });
 
       const { data: goalData } = await supabase
         .from("goals")
@@ -53,7 +84,7 @@ export default function DailyPage() {
         .eq("user_id", userId)
         .eq("is_current", true)
         .maybeSingle();
-      setGoal(goalData);
+      if (goalData) setGoal(goalData);
 
       const { data: catData } = await supabase.from("food_categories").select("*").order("name");
       const { data: foodData } = await supabase.from("foods").select("*").order("name");
@@ -68,7 +99,7 @@ export default function DailyPage() {
 
   useEffect(() => {
     if (user) fetchMeals(user.id, selectedDate);
-  }, [selectedDate]);
+  }, [user, selectedDate]);
 
   async function fetchMeals(userId: string, date: string) {
     const { data } = await supabase
@@ -86,7 +117,7 @@ export default function DailyPage() {
     const { data: existingMeal } = await supabase
       .from("daily_meals")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", user!.id)
       .eq("date", selectedDate)
       .eq("meal_type", newMealType)
       .maybeSingle();
@@ -95,7 +126,7 @@ export default function DailyPage() {
     if (!mealId) {
       const { data: newMeal } = await supabase
         .from("daily_meals")
-        .insert([{ user_id: user.id, date: selectedDate, meal_type: newMealType }])
+        .insert([{ user_id: user!.id, date: selectedDate, meal_type: newMealType }])
         .select()
         .single();
       mealId = newMeal?.id;
@@ -106,14 +137,14 @@ export default function DailyPage() {
         meal_id: mealId,
         food_id: selectedFood,
         quantity: parseFloat(quantity),
-        calories: preview.calories,
-        protein: preview.protein,
-        fat: preview.fat,
-        carbs: preview.carbs,
+        calories: preview!.calories,
+        protein: preview!.protein,
+        fat: preview!.fat,
+        carbs: preview!.carbs,
       },
     ]);
 
-    await fetchMeals(user.id, selectedDate);
+    await fetchMeals(user!.id, selectedDate);
     resetForm();
   }
 
@@ -135,14 +166,14 @@ export default function DailyPage() {
         .eq("id", item.id);
     }
 
-    await fetchMeals(user.id, selectedDate);
+    await fetchMeals(user!.id, selectedDate);
     setEditingMealId(null);
   }
 
   async function handleDeleteFood(foodId: string) {
     if (!confirm("¿Eliminar este alimento?")) return;
     await supabase.from("meal_foods").delete().eq("id", foodId);
-    await fetchMeals(user.id, selectedDate);
+    await fetchMeals(user!.id, selectedDate);
   }
 
   function resetForm() {
@@ -191,7 +222,6 @@ export default function DailyPage() {
     <div className="max-w-2xl mx-auto bg-gray-900 text-gray-100 p-6 rounded-lg shadow">
       <h2 className="text-2xl font-bold mb-4 text-white">Meals by Day</h2>
 
-      {/* Fecha */}
       <div className="mb-4">
         <label className="block text-sm mb-1 text-gray-300">Fecha</label>
         <input
@@ -203,14 +233,12 @@ export default function DailyPage() {
         />
       </div>
 
-      {/* Resumen */}
       <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 mb-6">
         <p><span className="font-bold">Meta:</span> {goal ? `${Math.round(goal.daily_calories)} kcal` : "Sin meta"}</p>
         <p><span className="font-bold">Consumidas:</span> {Math.round(totalCalories)} kcal</p>
         <p><span className="font-bold">Restantes:</span> {goal ? `${Math.max(goal.daily_calories - totalCalories, 0)} kcal` : "N/A"}</p>
       </div>
 
-      {/* Meals */}
       {meals.map((meal) => (
         <div key={meal.id} className="mb-4 bg-gray-800 p-4 rounded">
           <div className="flex justify-between items-center mb-2">
@@ -290,7 +318,6 @@ export default function DailyPage() {
         </div>
       ))}
 
-      {/* Agregar alimento */}
       {goal && (
         <div className="mt-6 bg-gray-800 p-4 rounded-lg border border-gray-700">
           <h4 className="font-semibold mb-2">Agregar alimento</h4>

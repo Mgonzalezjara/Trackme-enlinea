@@ -3,9 +3,24 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { Disclosure } from "@headlessui/react";
 
+interface Category {
+  id: string;
+  name: string;
+}
+
+interface Food {
+  id: string;
+  name: string;
+  category_id: string;
+  calories: number;
+  protein?: number;
+  fat?: number;
+  carbs?: number;
+}
+
 export default function FoodsPage() {
-  const [categories, setCategories] = useState<any[]>([]);
-  const [foods, setFoods] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [foods, setFoods] = useState<Food[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -19,7 +34,8 @@ export default function FoodsPage() {
     loadData();
   }, []);
 
-  const getFoodsByCategory = (categoryId: string) => foods.filter((f) => f.category_id === categoryId);
+  const getFoodsByCategory = (categoryId: string) =>
+    foods.filter((f) => f.category_id === categoryId);
 
   if (loading) return <p className="p-8 text-gray-300">Loading...</p>;
 

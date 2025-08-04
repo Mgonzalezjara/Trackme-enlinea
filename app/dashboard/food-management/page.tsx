@@ -2,8 +2,13 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
+interface Category {
+  id: string;
+  name: string;
+}
+
 export default function FoodManagementPage() {
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -15,10 +20,11 @@ export default function FoodManagementPage() {
     fetchCategories();
   }, []);
 
-  async function handleAddCategory(e: React.FormEvent) {
+  async function handleAddCategory(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const form = e.target as HTMLFormElement;
-    const name = (form.elements.namedItem("categoryName") as HTMLInputElement).value.trim();
+    const form = e.currentTarget;
+    const nameInput = form.elements.namedItem("categoryName") as HTMLInputElement;
+    const name = nameInput.value.trim();
     if (!name) return;
 
     const { error } = await supabase.from("food_categories").insert([{ name }]);
@@ -32,9 +38,9 @@ export default function FoodManagementPage() {
     form.reset();
   }
 
-  async function handleAddFood(e: React.FormEvent) {
+  async function handleAddFood(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const form = e.target as HTMLFormElement;
+    const form = e.currentTarget;
     const name = (form.elements.namedItem("foodName") as HTMLInputElement).value.trim();
     const category = (form.elements.namedItem("foodCategory") as HTMLSelectElement).value;
     const calories = parseFloat((form.elements.namedItem("calories") as HTMLInputElement).value);
@@ -59,7 +65,6 @@ export default function FoodManagementPage() {
     <div className="max-w-2xl mx-auto bg-gray-900 shadow-lg rounded-lg p-6 text-gray-100">
       <h2 className="text-2xl font-bold mb-6 text-white">Food Management</h2>
 
-      {/* Add Category */}
       <div className="mb-8">
         <h3 className="font-semibold mb-3 text-gray-300">Add Category</h3>
         <form onSubmit={handleAddCategory} className="flex gap-2">
@@ -73,7 +78,6 @@ export default function FoodManagementPage() {
         </form>
       </div>
 
-      {/* Add Food */}
       <div>
         <h3 className="font-semibold mb-3 text-gray-300">Add Food</h3>
         <form onSubmit={handleAddFood} className="flex flex-col gap-3">
