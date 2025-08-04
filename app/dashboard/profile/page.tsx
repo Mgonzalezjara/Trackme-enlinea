@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { Line } from "react-chartjs-2";
+import "chart.js/auto";
 
 interface User {
   id: string;
@@ -26,6 +28,12 @@ interface Goal {
   created_at: string;
 }
 
+interface WeightLog {
+  id: string;
+  weight: number;
+  logged_at: string;
+}
+
 export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile>({
@@ -42,6 +50,10 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [isSettingGoal, setIsSettingGoal] = useState(false);
 
+  const [weightLogs, setWeightLogs] = useState<WeightLog[]>([]);
+  const [newWeight, setNewWeight] = useState("");
+  const [logDate, setLogDate] = useState(new Date().toISOString().split("T")[0]);
+
   useEffect(() => {
     async function load() {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -49,11 +61,7 @@ export default function ProfilePage() {
       const userId = sessionData.session.user.id;
       setUser({ id: userId, email: sessionData.session.user.email ?? "" });
 
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .maybeSingle();
+      const { data: profileData } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
       if (profileData) setProfile(profileData);
 
       const { data: goalData } = await supabase
@@ -63,15 +71,40 @@ export default function ProfilePage() {
         .eq("is_current", true)
         .order("created_at", { ascending: false })
         .maybeSingle();
-
       if (goalData) {
         setGoal(goalData);
         setDeficitLevel(goalData.deficit_level);
       }
+
+      await fetchWeightLogs(userId);
       setLoading(false);
     }
     load();
   }, []);
+
+  async function fetchWeightLogs(userId: string) {
+    const { data } = await supabase
+      .from("weight_logs")
+      .select("*")
+      .eq("user_id", userId)
+      .order("logged_at", { ascending: true });
+    if (data) setWeightLogs(data);
+  }
+
+  async function handleAddWeight() {
+    if (!newWeight || !user) return alert("Ingresa un peso válido.");
+    const weight = parseFloat(newWeight);
+    await supabase.from("weight_logs").insert([{ user_id: user.id, weight, logged_at: logDate }]);
+    setNewWeight("");
+    setLogDate(new Date().toISOString().split("T")[0]);
+    await fetchWeightLogs(user.id);
+    alert("Peso registrado correctamente.");
+  }
+
+  function calculateBMI(weight: number) {
+    const heightM = parseFloat(profile.height) / 100;
+    return heightM > 0 ? weight / (heightM * heightM) : 0;
+  }
 
   async function handleSaveProfile(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -140,11 +173,7 @@ export default function ProfilePage() {
       .single();
 
     if (savedGoal) {
-      setGoal({
-        ...savedGoal,
-        weekly_loss: weeklyLoss,
-        weeks_to_goal: weeks,
-      });
+      setGoal({ ...savedGoal, weekly_loss: weeklyLoss, weeks_to_goal: weeks });
     }
 
     setIsSettingGoal(false);
@@ -154,47 +183,124 @@ export default function ProfilePage() {
   if (loading) return <p className="p-6 text-gray-300">Cargando...</p>;
 
   return (
-    <div className="max-w-xl mx-auto bg-gray-900 shadow-lg p-6 rounded-lg text-gray-100">
+    <div className="max-w-2xl mx-auto bg-gray-900 shadow-lg p-6 rounded-lg text-gray-100">
       <h2 className="text-2xl font-bold mb-6 text-white">Perfil y Meta</h2>
 
       <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 mb-6">
         <h3 className="text-lg font-semibold mb-2 text-green-400">🎯 Meta Actual</h3>
         {goal ? (
           <>
-            <p><span className="font-bold text-white">Calorías diarias:</span> {Math.round(goal.daily_calories)} kcal ({goal.deficit_level})</p>
-            <p><span className="font-bold text-white">Calorías de mantenimiento:</span> {Math.round(goal.maintenance_calories)} kcal</p>
-            <p><span className="font-bold text-white">Peso objetivo:</span> {profile.target_weight} kg</p>
-            {goal.weekly_loss && (
-              <p>
-                <span className="font-bold text-white">Pérdida estimada:</span> {goal.weekly_loss.toFixed(2)} kg/semana
-              </p>
-            )}
-            {goal.weeks_to_goal > 0 ? (
-              <p>
-                <span className="font-bold text-white">Tiempo estimado:</span> {goal.weeks_to_goal} semanas
-              </p>
-            ) : (
-              <p className="text-green-400">✅ ¡Has alcanzado tu peso objetivo!</p>
-            )}
-            <p className="text-gray-400 mt-2 text-sm">
-              Establecida el: {new Date(goal.created_at).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })}
-            </p>
+            <p><span className="font-bold">Calorías diarias:</span> {Math.round(goal.daily_calories)} kcal ({goal.deficit_level})</p>
+            <p><span className="font-bold">Calorías de mantenimiento:</span> {Math.round(goal.maintenance_calories)} kcal</p>
+            <p><span className="font-bold">Peso objetivo:</span> {profile.target_weight} kg</p>
+            <p><span className="font-bold">IMC actual:</span> {calculateBMI(parseFloat(profile.current_weight)).toFixed(1)}</p>
           </>
         ) : (
-          <p className="text-gray-400 italic">Aún no has establecido una meta. Completa tu perfil para crear una.</p>
+          <p className="text-gray-400 italic">Aún no has establecido una meta.</p>
         )}
       </div>
 
-      {!isSettingGoal && (
-        <div className="mb-6">
-          <button
-            onClick={() => setIsSettingGoal(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-          >
-            {goal ? "Establecer nueva meta" : "Crear meta"}
+      <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 mb-6">
+        <h3 className="text-lg font-semibold mb-3 text-blue-400">⚖️ Registro de Peso</h3>
+        <div className="flex gap-2 mb-3">
+          <input
+            type="number"
+            placeholder="Peso (kg)"
+            className="p-2 border border-gray-700 bg-gray-900 rounded text-gray-100 flex-1"
+            value={newWeight}
+            onChange={(e) => setNewWeight(e.target.value)}
+          />
+          <input
+            type="date"
+            value={logDate}
+            onChange={(e) => setLogDate(e.target.value)}
+            className="p-2 border border-gray-700 bg-gray-900 rounded text-gray-100"
+          />
+          <button onClick={handleAddWeight} className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded">
+            Agregar
           </button>
         </div>
-      )}
+
+        {weightLogs.length > 0 && (
+          <>
+            <div className="bg-gray-800 p-4 rounded-lg border border-gray-700" style={{ height: "350px" }}>
+          <Line
+            data={{
+              labels: weightLogs.map((log) =>
+                new Date(log.logged_at).toLocaleDateString("es-ES", { day: "2-digit", month: "short" })
+              ),
+              datasets: [
+                {
+                  label: "Peso registrado (kg)",
+                  data: weightLogs.map((log) => log.weight),
+                  borderColor: "#4ade80",
+                  backgroundColor: "rgba(74, 222, 128, 0.3)",
+                  tension: 0.3,
+                  fill: true,
+                  pointRadius: 4,
+                  pointBackgroundColor: "#4ade80",
+                },
+                ...(profile.target_weight
+                  ? [
+                      {
+                        label: `Meta de peso (${profile.target_weight} kg)`,
+                        data: Array(weightLogs.length).fill(parseFloat(profile.target_weight)),
+                        borderColor: "#60a5fa",
+                        borderDash: [6, 6],
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        fill: false,
+                      },
+                    ]
+                  : []),
+              ],
+            }}
+            options={{
+              responsive: true,
+              maintainAspectRatio: false, // 🔥 Evita deformar el gráfico
+              plugins: {
+                legend: { labels: { color: "#e5e7eb" } },
+                tooltip: {
+                  callbacks: {
+                    label: (context) => `${context.raw} kg`,
+                  },
+                },
+              },
+              scales: {
+                x: { ticks: { color: "#e5e7eb" }, grid: { color: "#374151" } },
+                y: {
+                  ticks: { color: "#e5e7eb" },
+                  grid: { color: "#374151" },
+                  beginAtZero: false,
+                },
+              },
+            }}
+          />
+        </div>
+
+ 
+
+            <table className="w-full mt-4 border-collapse border border-gray-700 text-sm">
+              <thead>
+                <tr className="bg-gray-700 text-gray-200">
+                  <th className="border border-gray-700 p-2">Fecha</th>
+                  <th className="border border-gray-700 p-2">Peso (kg)</th>
+                  <th className="border border-gray-700 p-2">IMC</th>
+                </tr>
+              </thead>
+              <tbody>
+                {weightLogs.map((log, idx) => (
+                  <tr key={log.id} className={idx % 2 === 0 ? "bg-gray-900" : "bg-gray-800"}>
+                    <td className="border border-gray-700 p-2">{new Date(log.logged_at).toLocaleDateString("es-ES")}</td>
+                    <td className="border border-gray-700 p-2">{log.weight}</td>
+                    <td className="border border-gray-700 p-2">{calculateBMI(log.weight).toFixed(1)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+      </div>
 
       <form onSubmit={handleSaveProfile} className="flex flex-col gap-4 mb-6">
         <label>
@@ -226,7 +332,9 @@ export default function ProfilePage() {
           <span className="text-sm mb-1 text-gray-300">Sexo</span>
           <select className="p-3 border border-gray-700 bg-gray-800 rounded text-gray-100 w-full"
             value={profile.sex || ""} onChange={(e) => setProfile({ ...profile, sex: e.target.value })}>
-            <option value="">Seleccionar</option><option value="male">Hombre</option><option value="female">Mujer</option>
+            <option value="">Seleccionar</option>
+            <option value="male">Hombre</option>
+            <option value="female">Mujer</option>
           </select>
         </label>
         <label>
@@ -266,6 +374,17 @@ export default function ProfilePage() {
           </div>
           <button onClick={() => setIsSettingGoal(false)} className="text-gray-400 text-sm underline">
             Cancelar
+          </button>
+        </div>
+      )}
+
+      {!isSettingGoal && (
+        <div className="mt-4">
+          <button
+            onClick={() => setIsSettingGoal(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+          >
+            {goal ? "Establecer nueva meta" : "Crear meta"}
           </button>
         </div>
       )}
