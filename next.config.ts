@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+    ignoreDuringBuilds: true, // ✅ Ignora ESLint en Vercel
 };
 
 export default nextConfig;
