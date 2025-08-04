@@ -1,5 +1,11 @@
-import LoginForm from "@/components/LoginForm"; // ✅ usando alias "@/"
+"use client";
+import LoginForm from "@/components/LoginForm";
 
-export default function LoginPage({ searchParams }: { searchParams: { mode?: string } }) {
-  return <LoginForm initialMode={searchParams.mode || "login"} />;
+interface PageProps {
+  searchParams?: { mode?: string };
+}
+
+export default function LoginPage({ searchParams }: PageProps) {
+  const mode = searchParams?.mode === "register" ? "register" : "login";
+  return <LoginForm mode={mode} />;
 }

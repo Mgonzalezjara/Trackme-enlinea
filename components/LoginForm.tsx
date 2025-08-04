@@ -3,17 +3,16 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-export default function LoginForm({ initialMode }: { initialMode: string }) {
-  const [isRegistering, setIsRegistering] = useState(initialMode === "register");
+export default function LoginForm({ mode }: { mode: string }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isRegistering, setIsRegistering] = useState(mode === "register");
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
     if (isRegistering) {
-      // Registro
       const { error } = await supabase.auth.signUp({
         email,
         password,
@@ -22,7 +21,6 @@ export default function LoginForm({ initialMode }: { initialMode: string }) {
       if (error) return alert(error.message);
       alert("Registro exitoso. Revisa tu correo y confirma tu cuenta.");
     } else {
-      // Login
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) return alert(error.message);
       router.push("/dashboard");
@@ -52,10 +50,7 @@ export default function LoginForm({ initialMode }: { initialMode: string }) {
             onChange={(e) => setPassword(e.target.value)}
             required
           />
-          <button
-            type="submit"
-            className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded transition"
-          >
+          <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded">
             {isRegistering ? "Registrarse" : "Iniciar sesión"}
           </button>
         </form>
