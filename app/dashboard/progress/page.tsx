@@ -174,41 +174,45 @@ export default function ProgressPage() {
             )}
           </div>
 
-          {/* Gráfico */}
-          <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
-            <Line
-              data={{
-                labels: progressData.days,
-                datasets: [
-                  {
-                    label: "Calorías consumidas",
-                    data: progressData.calories,
-                    borderColor: "#4ade80",
-                    backgroundColor: "rgba(74, 222, 128, 0.3)",
-                    fill: true,
-                    tension: 0.3,
-                  },
-                  {
-                    label: "Meta diaria",
-                    data: Array(progressData.days.length).fill(goal.daily_calories),
-                    borderColor: "#60a5fa",
-                    borderDash: [5, 5],
-                    fill: false,
-                  },
-                ],
-              }}
-              options={{
-                responsive: true,
-                plugins: {
-                  legend: { labels: { color: "#e5e7eb" } },
+       {/* Gráfico */}
+        <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
+        <div className="w-full" style={{ height: "300px" }}> {/* 🔥 Altura fija mejorada para mobile */}
+          <Line
+            data={{
+              labels: progressData.days,
+              datasets: [
+                {
+                  label: "Calorías consumidas",
+                  data: progressData.calories,
+                  borderColor: "#4ade80",
+                  backgroundColor: "rgba(74, 222, 128, 0.3)",
+                  fill: true,
+                  tension: 0.3,
                 },
-                scales: {
-                  x: { ticks: { color: "#e5e7eb" }, grid: { color: "#374151" } },
-                  y: { ticks: { color: "#e5e7eb" }, grid: { color: "#374151" } },
+                {
+                  label: "Meta diaria",
+                  data: Array(progressData.days.length).fill(goal.daily_calories),
+                  borderColor: "#60a5fa",
+                  borderDash: [5, 5],
+                  fill: false,
                 },
-              }}
-            />
-          </div>
+              ],
+            }}
+            options={{
+              responsive: true,
+              maintainAspectRatio: false, // ✅ Permite que ocupe más altura
+              plugins: {
+                legend: { labels: { color: "#e5e7eb" } },
+              },
+              scales: {
+                x: { ticks: { color: "#e5e7eb" }, grid: { color: "#374151" } },
+                y: { ticks: { color: "#e5e7eb" }, grid: { color: "#374151" } },
+              },
+            }}
+          />
+        </div>
+      </div>
+
         </>
       )}
     </div>
