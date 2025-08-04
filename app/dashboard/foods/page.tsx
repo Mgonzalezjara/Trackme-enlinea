@@ -37,11 +37,11 @@ export default function FoodsPage() {
   const getFoodsByCategory = (categoryId: string) =>
     foods.filter((f) => f.category_id === categoryId);
 
-  if (loading) return <p className="p-8 text-gray-300">Loading...</p>;
+  if (loading) return <p className="p-8 text-gray-300">Cargando...</p>;
 
   return (
     <div className="p-8 max-w-3xl mx-auto text-gray-100">
-      <h1 className="text-3xl font-bold mb-6 text-white">Foods by Category</h1>
+      <h1 className="text-3xl font-bold mb-6 text-white">Alimentos por Categoría</h1>
       <div className="space-y-4">
         {categories.map((cat) => (
           <Disclosure key={cat.id}>
@@ -60,11 +60,11 @@ export default function FoodsPage() {
                     <table className="w-full border-collapse border border-gray-700 text-sm">
                       <thead>
                         <tr className="bg-gray-800 text-gray-200">
-                          <th className="border border-gray-700 p-2 text-left">Food</th>
-                          <th className="border border-gray-700 p-2 text-right">Calories</th>
-                          <th className="border border-gray-700 p-2 text-right">Protein</th>
-                          <th className="border border-gray-700 p-2 text-right">Fat</th>
-                          <th className="border border-gray-700 p-2 text-right">Carbs</th>
+                          <th className="border border-gray-700 p-2 text-left">Alimento</th>
+                          <th className="border border-gray-700 p-2 text-right">Calorías</th>
+                          <th className="border border-gray-700 p-2 text-right">Proteínas</th>
+                          <th className="border border-gray-700 p-2 text-right">Grasas</th>
+                          <th className="border border-gray-700 p-2 text-right">Carbohidratos</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -80,7 +80,7 @@ export default function FoodsPage() {
                       </tbody>
                     </table>
                   ) : (
-                    <p className="text-gray-400 mt-2 italic">No foods in this category.</p>
+                    <p className="text-gray-400 mt-2 italic">No hay alimentos en esta categoría.</p>
                   )}
                 </Disclosure.Panel>
               </div>

@@ -29,9 +29,9 @@ export default function FoodManagementPage() {
 
     const { error } = await supabase.from("food_categories").insert([{ name }]);
     if (error) {
-      alert("Error adding category: " + error.message);
+      alert("Error al agregar la categoría: " + error.message);
     } else {
-      alert("Category added!");
+      alert("¡Categoría agregada!");
       const { data } = await supabase.from("food_categories").select("*").order("name");
       setCategories(data || []);
     }
@@ -48,42 +48,45 @@ export default function FoodManagementPage() {
     const fat = parseFloat((form.elements.namedItem("fat") as HTMLInputElement).value) || 0;
     const carbs = parseFloat((form.elements.namedItem("carbs") as HTMLInputElement).value) || 0;
 
-    if (!name || !category || isNaN(calories)) return alert("Please fill all required fields.");
+    if (!name || !category || isNaN(calories))
+      return alert("Por favor completa todos los campos requeridos.");
 
     const { error } = await supabase.from("foods").insert([{ name, category_id: category, calories, protein, fat, carbs }]);
     if (error) {
-      alert("Error adding food: " + error.message);
+      alert("Error al agregar el alimento: " + error.message);
     } else {
-      alert("Food added successfully!");
+      alert("¡Alimento agregado con éxito!");
     }
     form.reset();
   }
 
-  if (loading) return <p className="p-6 text-gray-200">Loading...</p>;
+  if (loading) return <p className="p-6 text-gray-200">Cargando...</p>;
 
   return (
     <div className="max-w-2xl mx-auto bg-gray-900 shadow-lg rounded-lg p-6 text-gray-100">
-      <h2 className="text-2xl font-bold mb-6 text-white">Food Management</h2>
+      <h2 className="text-2xl font-bold mb-6 text-white">Gestión de Alimentos</h2>
 
+      {/* Agregar Categoría */}
       <div className="mb-8">
-        <h3 className="font-semibold mb-3 text-gray-300">Add Category</h3>
+        <h3 className="font-semibold mb-3 text-gray-300">Agregar Categoría</h3>
         <form onSubmit={handleAddCategory} className="flex gap-2">
           <input
             name="categoryName"
-            placeholder="Category name"
+            placeholder="Nombre de la categoría"
             className="p-3 border border-gray-700 bg-gray-800 rounded flex-1 text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           />
-          <button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Add</button>
+          <button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Agregar</button>
         </form>
       </div>
 
+      {/* Agregar Alimento */}
       <div>
-        <h3 className="font-semibold mb-3 text-gray-300">Add Food</h3>
+        <h3 className="font-semibold mb-3 text-gray-300">Agregar Alimento</h3>
         <form onSubmit={handleAddFood} className="flex flex-col gap-3">
           <input
             name="foodName"
-            placeholder="Food name"
+            placeholder="Nombre del alimento"
             className="p-3 border border-gray-700 bg-gray-800 rounded text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           />
@@ -92,7 +95,7 @@ export default function FoodManagementPage() {
             className="p-3 border border-gray-700 bg-gray-800 rounded text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           >
-            <option value="">Select category</option>
+            <option value="">Selecciona una categoría</option>
             {categories.map((cat) => (
               <option key={cat.id} value={cat.id}>
                 {cat.name}
@@ -104,7 +107,7 @@ export default function FoodManagementPage() {
               type="number"
               step="0.1"
               name="calories"
-              placeholder="Calories per 100g"
+              placeholder="Calorías por 100g"
               className="p-3 border border-gray-700 bg-gray-800 rounded text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
@@ -112,25 +115,25 @@ export default function FoodManagementPage() {
               type="number"
               step="0.1"
               name="protein"
-              placeholder="Protein (g)"
+              placeholder="Proteínas (g)"
               className="p-3 border border-gray-700 bg-gray-800 rounded text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <input
               type="number"
               step="0.1"
               name="fat"
-              placeholder="Fat (g)"
+              placeholder="Grasas (g)"
               className="p-3 border border-gray-700 bg-gray-800 rounded text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <input
               type="number"
               step="0.1"
               name="carbs"
-              placeholder="Carbs (g)"
+              placeholder="Carbohidratos (g)"
               className="p-3 border border-gray-700 bg-gray-800 rounded text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded mt-2">Add Food</button>
+          <button className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded mt-2">Agregar Alimento</button>
         </form>
       </div>
     </div>

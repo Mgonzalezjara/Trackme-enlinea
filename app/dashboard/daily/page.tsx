@@ -71,6 +71,14 @@ export default function DailyPage() {
   const [loading, setLoading] = useState(true);
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
 
+  // Diccionario para traducir tipos de comida
+  const mealTypeLabels: Record<string, string> = {
+    breakfast: "Desayuno",
+    lunch: "Almuerzo",
+    dinner: "Cena",
+    snack: "Snack",
+  };
+
   useEffect(() => {
     async function load() {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -220,7 +228,7 @@ export default function DailyPage() {
 
   return (
     <div className="max-w-2xl mx-auto bg-gray-900 text-gray-100 p-6 rounded-lg shadow">
-      <h2 className="text-2xl font-bold mb-4 text-white">Meals by Day</h2>
+      <h2 className="text-2xl font-bold mb-4 text-white">Comidas por día</h2>
 
       <div className="mb-4">
         <label className="block text-sm mb-1 text-gray-300">Fecha</label>
@@ -242,7 +250,8 @@ export default function DailyPage() {
       {meals.map((meal) => (
         <div key={meal.id} className="mb-4 bg-gray-800 p-4 rounded">
           <div className="flex justify-between items-center mb-2">
-            <h3 className="font-semibold text-green-400 capitalize">{meal.meal_type}</h3>
+            {/* ✅ Mostrar tipo de comida en español */}
+            <h3 className="font-semibold text-green-400">{mealTypeLabels[meal.meal_type] || meal.meal_type}</h3>
             {editingMealId === meal.id ? (
               <button
                 onClick={() => handleSaveEdit(meal.id)}
@@ -291,7 +300,7 @@ export default function DailyPage() {
                         <span className="text-gray-400">g</span>
                       </div>
                       <div className="text-xs text-gray-400 ml-1">
-                        Preview: {editPreview.calories} kcal | P: {editPreview.protein}g | G: {editPreview.fat}g | C: {editPreview.carbs}g
+                        Vista previa: {editPreview.calories} kcal | P: {editPreview.protein}g | G: {editPreview.fat}g | C: {editPreview.carbs}g
                       </div>
                       <button
                         onClick={() => handleDeleteFood(f.id)}
@@ -318,6 +327,7 @@ export default function DailyPage() {
         </div>
       ))}
 
+      {/* Formulario de agregar alimento */}
       {goal && (
         <div className="mt-6 bg-gray-800 p-4 rounded-lg border border-gray-700">
           <h4 className="font-semibold mb-2">Agregar alimento</h4>
@@ -371,8 +381,8 @@ export default function DailyPage() {
 
             {preview && (
               <div className="bg-gray-700 p-3 rounded text-sm text-gray-100">
-                <p>Preview: <span className="font-bold">{preview.calories} kcal</span></p>
-                <p>Proteínas: {preview.protein} g | Grasas: {preview.fat} g | Carbs: {preview.carbs} g</p>
+                <p>Vista previa: <span className="font-bold">{preview.calories} kcal</span></p>
+                <p>Proteínas: {preview.protein} g | Grasas: {preview.fat} g | Carbohidratos: {preview.carbs} g</p>
               </div>
             )}
 
