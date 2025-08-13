@@ -6,6 +6,7 @@ import "chart.js/auto";
 
 interface Goal {
   daily_calories: number;
+  maintenance_calories: number;
   deficit_level: string;
 }
 
@@ -99,7 +100,11 @@ export default function ProgressPage() {
 
   const totalConsumed = detailedDays.reduce((sum, d) => sum + d.calories, 0);
   const totalGoal = goal ? goal.daily_calories * detailedDays.length : 0;
-  const difference = totalConsumed - totalGoal;
+  const totalMaintenance = goal ? goal.maintenance_calories * detailedDays.length : 0;
+
+  const differenceWithGoal = totalConsumed - totalGoal;
+  const differenceWithMaintenance = totalConsumed - totalMaintenance;
+  const estimatedFatLossKg = differenceWithMaintenance < 0 ? -differenceWithMaintenance / 7700 : 0;
 
   if (loading) return <p className="text-gray-300 p-6">Cargando...</p>;
 
@@ -113,7 +118,6 @@ export default function ProgressPage() {
         </p>
       ) : (
         <>
-          {/* Meta actual */}
           <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 mb-6">
             <p>
               <span className="font-bold">Meta activa:</span> {Math.round(goal.daily_calories)} kcal/día ({goal.deficit_level})
@@ -123,7 +127,6 @@ export default function ProgressPage() {
             </p>
           </div>
 
-          {/* Selector de rango */}
           <div className="mb-4 flex gap-2">
             {[7, 15, 30].map((r) => (
               <button
@@ -136,20 +139,33 @@ export default function ProgressPage() {
             ))}
           </div>
 
-          {/* Resumen total */}
-          <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 mb-6">
+          <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 mb-6 space-y-2">
             <p><span className="font-bold">Días con comidas:</span> {detailedDays.length}</p>
             <p><span className="font-bold">Calorías consumidas:</span> {Math.round(totalConsumed)} kcal</p>
+
             <p><span className="font-bold">Meta total para esos días:</span> {Math.round(totalGoal)} kcal</p>
             <p>
-              <span className="font-bold">Diferencia:</span>{" "}
-              <span className={difference > 0 ? "text-red-400" : "text-green-400"}>
-                {difference > 0 ? `+${Math.round(difference)} kcal (sobre la meta)` : `${Math.round(difference)} kcal (déficit)`}
+              <span className="font-bold">Diferencia con la meta:</span>{" "}
+              <span className={differenceWithGoal > 0 ? "text-red-400" : "text-green-400"}>
+                {differenceWithGoal > 0
+                  ? `+${Math.round(differenceWithGoal)} kcal (sobre la meta)`
+                  : `${Math.round(differenceWithGoal)} kcal (déficit)`}
               </span>
             </p>
+
+            <p><span className="font-bold">Mantenimiento total estimado:</span> {Math.round(totalMaintenance)} kcal</p>
+            <p>
+              <span className="font-bold">Déficit real respecto al mantenimiento:</span>{" "}
+              <span className={differenceWithMaintenance < 0 ? "text-green-400" : "text-red-400"}>
+                {differenceWithMaintenance < 0
+                  ? `${Math.round(-differenceWithMaintenance)} kcal de déficit`
+                  : `+${Math.round(differenceWithMaintenance)} kcal sobre mantenimiento`}
+              </span>
+            </p>
+
+            <p><span className="font-bold">Grasa estimada perdida:</span> {estimatedFatLossKg.toFixed(2)} kg</p>
           </div>
 
-          {/* Tabla de días */}
           <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 mb-6">
             <h3 className="text-lg font-semibold mb-3">Calorías por día</h3>
             {detailedDays.length > 0 ? (
@@ -174,45 +190,43 @@ export default function ProgressPage() {
             )}
           </div>
 
-       {/* Gráfico */}
-        <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
-        <div className="w-full" style={{ height: "300px" }}> {/* 🔥 Altura fija mejorada para mobile */}
-          <Line
-            data={{
-              labels: progressData.days,
-              datasets: [
-                {
-                  label: "Calorías consumidas",
-                  data: progressData.calories,
-                  borderColor: "#4ade80",
-                  backgroundColor: "rgba(74, 222, 128, 0.3)",
-                  fill: true,
-                  tension: 0.3,
-                },
-                {
-                  label: "Meta diaria",
-                  data: Array(progressData.days.length).fill(goal.daily_calories),
-                  borderColor: "#60a5fa",
-                  borderDash: [5, 5],
-                  fill: false,
-                },
-              ],
-            }}
-            options={{
-              responsive: true,
-              maintainAspectRatio: false, // ✅ Permite que ocupe más altura
-              plugins: {
-                legend: { labels: { color: "#e5e7eb" } },
-              },
-              scales: {
-                x: { ticks: { color: "#e5e7eb" }, grid: { color: "#374151" } },
-                y: { ticks: { color: "#e5e7eb" }, grid: { color: "#374151" } },
-              },
-            }}
-          />
-        </div>
-      </div>
-
+          <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
+            <div className="w-full" style={{ height: "300px" }}>
+              <Line
+                data={{
+                  labels: progressData.days,
+                  datasets: [
+                    {
+                      label: "Calorías consumidas",
+                      data: progressData.calories,
+                      borderColor: "#4ade80",
+                      backgroundColor: "rgba(74, 222, 128, 0.3)",
+                      fill: true,
+                      tension: 0.3,
+                    },
+                    {
+                      label: "Meta diaria",
+                      data: Array(progressData.days.length).fill(goal.daily_calories),
+                      borderColor: "#60a5fa",
+                      borderDash: [5, 5],
+                      fill: false,
+                    },
+                  ],
+                }}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: { labels: { color: "#e5e7eb" } },
+                  },
+                  scales: {
+                    x: { ticks: { color: "#e5e7eb" }, grid: { color: "#374151" } },
+                    y: { ticks: { color: "#e5e7eb" }, grid: { color: "#374151" } },
+                  },
+                }}
+              />
+            </div>
+          </div>
         </>
       )}
     </div>
