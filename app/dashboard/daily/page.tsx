@@ -94,6 +94,22 @@ interface RecipeStats {
 type EntryMode = "grams" | "portion";
 type AddMode = "food" | "recipe";
 
+// Helper para pluralizar etiquetas en español de forma decente
+function pluralizeLabel(label: string, quantity: number): string {
+  if (quantity === 1) return label;
+
+  const lower = label.toLowerCase().trim();
+
+  if (lower === "unidad") return "unidades";
+  if (lower === "porción" || lower === "porcion") return "porciones";
+
+  if (lower.endsWith("l") || lower.endsWith("n") || lower.endsWith("r")) {
+    return label + "es";
+  }
+
+  return label + "s";
+}
+
 export default function DailyPage() {
   const router = useRouter();
 
@@ -151,7 +167,6 @@ export default function DailyPage() {
   ): Record<string, RecipeStats> {
     const map: Record<string, RecipeStats> = {};
 
-    // Inicializar
     recipesList.forEach((r) => {
       map[r.id] = {
         totalCalories: 0,
@@ -165,7 +180,6 @@ export default function DailyPage() {
       };
     });
 
-    // Sumar ingredientes
     ingredients.forEach((row) => {
       const rStats = map[row.recipe_id];
       if (!rStats) return;
@@ -183,15 +197,14 @@ export default function DailyPage() {
       rStats.totalCarbs += food.carbs * factor;
     });
 
-    // Calcular por porción
     recipesList.forEach((r) => {
       const stats = map[r.id];
       if (!stats) return;
 
       const servings =
         r.total_servings && r.total_servings > 0 ? r.total_servings : 1;
-
       const factor = 1 / servings;
+
       stats.perServingCalories = stats.totalCalories * factor;
       stats.perServingProtein = stats.totalProtein * factor;
       stats.perServingFat = stats.totalFat * factor;
@@ -220,7 +233,7 @@ export default function DailyPage() {
       };
     }
 
-    // Fallback (no debería pasar casi nunca si load() corrió bien)
+    // Fallback por si no tenemos stats (raro)
     const recipe = recipes.find((r) => r.id === recipeId);
     if (!recipe) return null;
 
@@ -255,7 +268,6 @@ export default function DailyPage() {
     }
 
     const perFactor = 1 / totalServings;
-
     const perCalories = totalCalories * perFactor;
     const perProtein = totalProtein * perFactor;
     const perFat = totalFat * perFactor;
@@ -326,7 +338,6 @@ export default function DailyPage() {
         }));
         setRecipes(recipesList);
 
-        // Calcular stats de recetas (total y por porción)
         if (recipesList.length > 0 && foodsList.length > 0) {
           const recipeIds = recipesList.map((r) => r.id);
           const { data: ingRows, error: ingErr } = await supabase
@@ -399,7 +410,6 @@ export default function DailyPage() {
       return alert("Ingresa una cantidad válida.");
     }
 
-    // Buscar si ya existe comida de ese tipo ese día
     const { data: existingMeal } = await supabase
       .from("daily_meals")
       .select("*")
@@ -425,7 +435,7 @@ export default function DailyPage() {
         meal_id: mealId,
         food_id: selectedFood,
         recipe_id: null,
-        quantity: quantityNumber, // gramos o nº de porciones
+        quantity: quantityNumber,
         is_portion: entryMode === "portion",
         calories: preview.calories,
         protein: preview.protein,
@@ -456,7 +466,6 @@ export default function DailyPage() {
       return alert("No se pudieron calcular las calorías de la receta.");
     }
 
-    // Buscar si ya existe comida de ese tipo ese día
     const { data: existingMeal } = await supabase
       .from("daily_meals")
       .select("*")
@@ -482,7 +491,7 @@ export default function DailyPage() {
         meal_id: mealId,
         food_id: null,
         recipe_id: selectedRecipe,
-        quantity: servingsNum, // nº de porciones de la receta
+        quantity: servingsNum,
         is_portion: true,
         calories: macros.calories,
         protein: macros.protein,
@@ -503,7 +512,6 @@ export default function DailyPage() {
     if (!meal) return;
 
     for (const item of meal.meal_foods) {
-      // Ítem basado en receta
       if (item.recipe_id) {
         const newQty = item.quantity;
         if (!newQty || newQty <= 0) continue;
@@ -523,7 +531,6 @@ export default function DailyPage() {
           })
           .eq("id", item.id);
       } else {
-        // Ítem basado en alimento, comportamiento actual
         const fd = item.foods;
         if (!fd) continue;
 
@@ -531,7 +538,7 @@ export default function DailyPage() {
         if (item.is_portion && fd.reference_portion_grams) {
           grams = item.quantity * fd.reference_portion_grams;
         } else {
-          grams = item.quantity; // asumimos gramos
+          grams = item.quantity;
         }
 
         const factor = grams / 100;
@@ -539,7 +546,7 @@ export default function DailyPage() {
         await supabase
           .from("meal_foods")
           .update({
-            quantity: item.quantity, // sigue siendo gramos o porciones según is_portion
+            quantity: item.quantity,
             is_portion: item.is_portion,
             calories: Math.round(fd.calories * factor),
             protein: +(fd.protein * factor).toFixed(1),
@@ -578,7 +585,7 @@ export default function DailyPage() {
   }
 
   // -----------------------------
-  // Vista previa para alimentos (formulario)
+  // Vista previa alimentos (form)
   // -----------------------------
   useEffect(() => {
     if (!selectedFood || !quantity) {
@@ -619,7 +626,7 @@ export default function DailyPage() {
   }, [selectedFood, quantity, foods, entryMode]);
 
   // -----------------------------
-  // Vista previa para recetas (formulario)
+  // Vista previa recetas (form)
   // -----------------------------
   useEffect(() => {
     if (!selectedRecipe || !recipeServings) {
@@ -639,9 +646,8 @@ export default function DailyPage() {
     })();
   }, [selectedRecipe, recipeServings, recipeStats, recipes, foods]);
 
-  // Vista previa de edición (cada ítem ya guardado)
+  // Vista previa de edición (ítems guardados)
   const getEditPreview = (foodItem: FoodItem) => {
-    // Para recetas usamos los valores ya guardados (calories/protein/fat/carbs)
     if (foodItem.recipe_id) {
       return {
         calories: Math.round(foodItem.calories),
@@ -766,20 +772,29 @@ export default function DailyPage() {
 
               if (isRecipeItem) {
                 const recipe = f.recipes!;
-                const label = recipe.serving_label || "porción";
-                // Para mostrar en texto: cantidad + label, sin duplicar "1"
-                unitLabel = `${f.quantity} ${label}`;
+                const baseLabel = recipe.serving_label || "porción";
+                const labelPlural = pluralizeLabel(baseLabel, f.quantity);
+                unitLabel = `${f.quantity} ${labelPlural}`;
                 displayName = recipe.name;
               } else {
                 const fd = f.foods;
                 displayName = fd ? fd.name : "Ítem";
-                unitLabel = f.is_portion
-                  ? fd && fd.reference_portion_name
-                    ? `${f.quantity} ${fd.reference_portion_name}${
-                        f.quantity > 1 ? "s" : ""
-                      }`
-                    : `${f.quantity} porciones`
-                  : `${f.quantity} g`;
+
+                if (f.is_portion) {
+                  if (fd && fd.reference_portion_name) {
+                    const baseLabel = fd.reference_portion_name;
+                    const labelPlural = pluralizeLabel(
+                      baseLabel,
+                      f.quantity
+                    );
+                    unitLabel = `${f.quantity} ${labelPlural}`;
+                  } else {
+                    const labelPlural = pluralizeLabel("porción", f.quantity);
+                    unitLabel = `${f.quantity} ${labelPlural}`;
+                  }
+                } else {
+                  unitLabel = `${f.quantity} g`;
+                }
               }
 
               return (
@@ -961,7 +976,6 @@ export default function DailyPage() {
                 ))}
             </select>
 
-            {/* Toggle gramos / porciones (solo si el alimento tiene porción de referencia) */}
             {selectedFoodObj && selectedFoodHasPortion && (
               <div>
                 <div className="flex gap-2 mb-2">
@@ -1040,7 +1054,6 @@ export default function DailyPage() {
         <div className="mt-6 bg-gray-800 p-4 rounded-lg border border-gray-700">
           <h4 className="font-semibold mb-2">Agregar receta</h4>
           <div className="flex flex-col gap-3">
-            {/* Usa el mismo tipo de comida (newMealType) */}
             <select
               value={newMealType}
               onChange={(e) => setNewMealType(e.target.value)}
@@ -1088,19 +1101,19 @@ export default function DailyPage() {
                         (x) => x.id === selectedRecipe
                       );
                       if (!r) return null;
-                      const label = r.serving_label || "porción";
-                      // Si hay total_servings >1 mostramos "X porciones", si no, mostramos el label tal cual
+                      const baseLabel = r.serving_label || "porción";
+
                       let text: string;
-                      if (r.total_servings && r.total_servings > 1) {
-                        const pluralLabel = label.endsWith("s")
-                          ? label
-                          : `${label}s`;
-                        text = `${r.total_servings} ${pluralLabel}`;
-                      } else if (r.total_servings) {
-                        text = label;
+                      if (r.total_servings && r.total_servings > 0) {
+                        const labelPlural = pluralizeLabel(
+                          baseLabel,
+                          r.total_servings
+                        );
+                        text = `${r.total_servings} ${labelPlural}`;
                       } else {
-                        text = label;
+                        text = baseLabel;
                       }
+
                       return (
                         <>
                           Pensada para{" "}
@@ -1182,18 +1195,19 @@ export default function DailyPage() {
             <div className="text-xs text-gray-400 mb-3">
               {(() => {
                 const r = currentModalRecipe;
-                const label = r.serving_label || "porción";
+                const baseLabel = r.serving_label || "porción";
+
                 let text: string;
-                if (r.total_servings && r.total_servings > 1) {
-                  const pluralLabel = label.endsWith("s")
-                    ? label
-                    : `${label}s`;
-                  text = `${r.total_servings} ${pluralLabel}`;
-                } else if (r.total_servings) {
-                  text = label;
+                if (r.total_servings && r.total_servings > 0) {
+                  const labelPlural = pluralizeLabel(
+                    baseLabel,
+                    r.total_servings
+                  );
+                  text = `${r.total_servings} ${labelPlural}`;
                 } else {
-                  text = label;
+                  text = baseLabel;
                 }
+
                 return (
                   <>
                     Pensada para{" "}
@@ -1204,72 +1218,68 @@ export default function DailyPage() {
             </div>
 
             {currentModalStats && (
-              <>
-                <div className="grid grid-cols-2 gap-2 text-xs mb-3">
-                  <div className="border border-gray-700 rounded p-2">
-                    <p className="text-[11px] text-gray-400">
-                      Kcal totales
-                    </p>
-                    <p className="text-sm font-semibold">
-                      {Math.round(currentModalStats.totalCalories)} kcal
-                    </p>
-                  </div>
-                  <div className="border border-gray-700 rounded p-2">
-                    <p className="text-[11px] text-gray-400">
-                      Kcal por porción
-                    </p>
-                    <p className="text-sm font-semibold">
-                      {Math.round(currentModalStats.perServingCalories)} kcal
-                    </p>
-                  </div>
-                  <div className="border border-gray-700 rounded p-2">
-                    <p className="text-[11px] text-gray-400">
-                      Proteína total
-                    </p>
-                    <p className="text-sm font-semibold">
-                      {currentModalStats.totalProtein.toFixed(1)} g
-                    </p>
-                  </div>
-                  <div className="border border-gray-700 rounded p-2">
-                    <p className="text-[11px] text-gray-400">
-                      Proteína / porción
-                    </p>
-                    <p className="text-sm font-semibold">
-                      {currentModalStats.perServingProtein.toFixed(1)} g
-                    </p>
-                  </div>
-                  <div className="border border-gray-700 rounded p-2">
-                    <p className="text-[11px] text-gray-400">Grasas totales</p>
-                    <p className="text-sm font-semibold">
-                      {currentModalStats.totalFat.toFixed(1)} g
-                    </p>
-                  </div>
-                  <div className="border border-gray-700 rounded p-2">
-                    <p className="text-[11px] text-gray-400">
-                      Grasas / porción
-                    </p>
-                    <p className="text-sm font-semibold">
-                      {currentModalStats.perServingFat.toFixed(1)} g
-                    </p>
-                  </div>
-                  <div className="border border-gray-700 rounded p-2">
-                    <p className="text-[11px] text-gray-400">
-                      Carbohidratos totales
-                    </p>
-                    <p className="text-sm font-semibold">
-                      {currentModalStats.totalCarbs.toFixed(1)} g
-                    </p>
-                  </div>
-                  <div className="border border-gray-700 rounded p-2">
-                    <p className="text-[11px] text-gray-400">
-                      Carbohidratos / porción
-                    </p>
-                    <p className="text-sm font-semibold">
-                      {currentModalStats.perServingCarbs.toFixed(1)} g
-                    </p>
-                  </div>
+              <div className="grid grid-cols-2 gap-2 text-xs mb-3">
+                <div className="border border-gray-700 rounded p-2">
+                  <p className="text-[11px] text-gray-400">Kcal totales</p>
+                  <p className="text-sm font-semibold">
+                    {Math.round(currentModalStats.totalCalories)} kcal
+                  </p>
                 </div>
-              </>
+                <div className="border border-gray-700 rounded p-2">
+                  <p className="text-[11px] text-gray-400">
+                    Kcal por porción
+                  </p>
+                  <p className="text-sm font-semibold">
+                    {Math.round(currentModalStats.perServingCalories)} kcal
+                  </p>
+                </div>
+                <div className="border border-gray-700 rounded p-2">
+                  <p className="text-[11px] text-gray-400">
+                    Proteína total
+                  </p>
+                  <p className="text-sm font-semibold">
+                    {currentModalStats.totalProtein.toFixed(1)} g
+                  </p>
+                </div>
+                <div className="border border-gray-700 rounded p-2">
+                  <p className="text-[11px] text-gray-400">
+                    Proteína / porción
+                  </p>
+                  <p className="text-sm font-semibold">
+                    {currentModalStats.perServingProtein.toFixed(1)} g
+                  </p>
+                </div>
+                <div className="border border-gray-700 rounded p-2">
+                  <p className="text-[11px] text-gray-400">Grasas totales</p>
+                  <p className="text-sm font-semibold">
+                    {currentModalStats.totalFat.toFixed(1)} g
+                  </p>
+                </div>
+                <div className="border border-gray-700 rounded p-2">
+                  <p className="text-[11px] text-gray-400">
+                    Grasas / porción
+                  </p>
+                  <p className="text-sm font-semibold">
+                    {currentModalStats.perServingFat.toFixed(1)} g
+                  </p>
+                </div>
+                <div className="border border-gray-700 rounded p-2">
+                  <p className="text-[11px] text-gray-400">
+                    Carbohidratos totales
+                  </p>
+                  <p className="text-sm font-semibold">
+                    {currentModalStats.totalCarbs.toFixed(1)} g
+                  </p>
+                </div>
+                <div className="border border-gray-700 rounded p-2">
+                  <p className="text-[11px] text-gray-400">
+                    Carbohidratos / porción
+                  </p>
+                  <p className="text-sm font-semibold">
+                    {currentModalStats.perServingCarbs.toFixed(1)} g
+                  </p>
+                </div>
+              </div>
             )}
 
             <div className="flex justify-between mt-3">

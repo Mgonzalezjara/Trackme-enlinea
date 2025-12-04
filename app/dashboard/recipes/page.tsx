@@ -76,18 +76,20 @@ export default function RecipesPage() {
   const [expandedRecipeId, setExpandedRecipeId] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<RecipesTab>("mine");
+  const [searchTerm, setSearchTerm] = useState("");
 
-  // estado del formulario
+  // estado del formulario (modal)
   const [editingRecipe, setEditingRecipe] = useState<Recipe | null>(null);
   const [recipeName, setRecipeName] = useState("");
   const [description, setDescription] = useState("");
-  const [servingLabel, setServingLabel] = useState("1 porción");
+  const [servingLabel, setServingLabel] = useState("porción");
   const [totalServings, setTotalServings] = useState("1");
   const [isPublic, setIsPublic] = useState(false);
   const [ingredients, setIngredients] = useState<IngredientDraft[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // en receta nueva = true, si hay receta y user, chequea dueño
   const isOwner =
@@ -236,10 +238,15 @@ export default function RecipesPage() {
     setEditingRecipe(null);
     setRecipeName("");
     setDescription("");
-    setServingLabel("1 porción");
+    setServingLabel("porción");
     setTotalServings("1");
     setIsPublic(false);
     setIngredients([]);
+  }
+
+  function handleNewRecipe() {
+    resetForm();
+    setIsModalOpen(true);
   }
 
   function addIngredientRow() {
@@ -268,7 +275,7 @@ export default function RecipesPage() {
     setEditingRecipe(recipe);
     setRecipeName(recipe.name);
     setDescription(recipe.description ?? "");
-    setServingLabel(recipe.serving_label ?? "1 porción");
+    setServingLabel(recipe.serving_label ?? "porción");
     setTotalServings(String(recipe.total_servings ?? 1));
     setIsPublic(recipe.is_public);
 
@@ -293,6 +300,7 @@ export default function RecipesPage() {
     );
 
     setIngredients(mapped);
+    setIsModalOpen(true);
   }
 
   // -------------------------------
@@ -310,7 +318,7 @@ export default function RecipesPage() {
     }
 
     const servingsNum = parseFloat(totalServings || "1");
-       if (isNaN(servingsNum) || servingsNum <= 0) {
+    if (isNaN(servingsNum) || servingsNum <= 0) {
       alert("Porciones totales inválidas.");
       return;
     }
@@ -366,7 +374,7 @@ export default function RecipesPage() {
           .update({
             name: recipeName.trim(),
             description: description.trim() || null,
-            serving_label: servingLabel.trim() || "1 porción",
+            serving_label: servingLabel.trim() || "porción",
             total_servings: servingsNum,
             is_public: isPublic,
           })
@@ -447,6 +455,7 @@ export default function RecipesPage() {
 
       alert("Receta guardada correctamente.");
       resetForm();
+      setIsModalOpen(false);
     } finally {
       setSaving(false);
     }
@@ -469,417 +478,476 @@ export default function RecipesPage() {
   }
 
   // -------------------------------
-  // Derivados para las pestañas
+  // Derivados para las pestañas + filtro
   // -------------------------------
   const myRecipes =
     user ? recipes.filter((r) => r.created_by_user_id === user.id) : [];
 
-  const displayedRecipes =
-    activeTab === "mine" ? myRecipes : recipes;
+  const baseList = activeTab === "mine" ? myRecipes : recipes;
+
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const displayedRecipes = normalizedSearch
+    ? baseList.filter((r) =>
+        r.name.toLowerCase().includes(normalizedSearch)
+      )
+    : baseList;
 
   return (
     <div className="max-w-4xl mx-auto text-gray-100">
       <h1 className="text-3xl font-bold mb-6 text-white">Recetas</h1>
 
-      {/* Lista de recetas */}
-      <div className="mb-8 space-y-3">
-        <div className="flex flex-col gap-2 mb-2 md:flex-row md:items-center md:justify-between">
+      {/* Contenedor principal con scroll interno para la lista */}
+      <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
+        {/* Header: título + botón nueva receta */}
+        <div className="flex flex-col gap-2 mb-3 md:flex-row md:items-center md:justify-between">
           <h2 className="text-xl font-semibold">Listado</h2>
           <button
-            onClick={resetForm}
+            onClick={handleNewRecipe}
             className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm self-start md:self-auto"
           >
             + Nueva receta
           </button>
         </div>
 
-        {/* Pestañas */}
-        <div className="flex gap-2 mb-2 text-xs">
-          <button
-            type="button"
-            onClick={() => setActiveTab("mine")}
-            className={`px-3 py-1.5 rounded-full border ${
-              activeTab === "mine"
-                ? "bg-white text-gray-900 border-white"
-                : "border-gray-600 text-gray-300 hover:bg-gray-800"
-            }`}
-          >
-            Mis recetas
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("all")}
-            className={`px-3 py-1.5 rounded-full border ${
-              activeTab === "all"
-                ? "bg-white text-gray-900 border-white"
-                : "border-gray-600 text-gray-300 hover:bg-gray-800"
-            }`}
-          >
-            Públicas + mías
-          </button>
+        {/* Tabs + buscador (sticky dentro del contenedor de lista) */}
+        <div className="sticky top-0 z-10 pb-2 bg-gray-900">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            {/* Pestañas */}
+            <div className="flex gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setActiveTab("mine")}
+                className={`px-3 py-1.5 rounded-full border ${
+                  activeTab === "mine"
+                    ? "bg-white text-gray-900 border-white"
+                    : "border-gray-600 text-gray-300 hover:bg-gray-800"
+                }`}
+              >
+                Mis recetas
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("all")}
+                className={`px-3 py-1.5 rounded-full border ${
+                  activeTab === "all"
+                    ? "bg-white text-gray-900 border-white"
+                    : "border-gray-600 text-gray-300 hover:bg-gray-800"
+                }`}
+              >
+                Públicas + mías
+              </button>
+            </div>
+
+            {/* Filtro por nombre */}
+            <div className="w-full md:w-64">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Buscar receta por nombre…"
+                  className="w-full pl-3 pr-8 py-1.5 rounded border border-gray-700 bg-gray-800 text-xs text-gray-100 placeholder:text-gray-500"
+                />
+                <span className="absolute right-2 top-1.5 text-gray-500 text-xs">
+                  🔍
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {displayedRecipes.length === 0 ? (
-          <p className="text-gray-400 italic">
-            {activeTab === "mine"
-              ? "Aún no has creado recetas. Crea la primera con el botón “Nueva receta”."
-              : "No hay recetas públicas disponibles todavía."}
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {displayedRecipes.map((r) => {
-              const badge = getRecipeBadge(r);
-              const mine = user && r.created_by_user_id === user.id;
-              const summary = recipeSummaries[r.id];
-              const isExpanded = expandedRecipeId === r.id;
+        {/* Lista con scroll interno */}
+        <div className="mt-2 max-h-[500px] overflow-y-auto pr-1">
+          {displayedRecipes.length === 0 ? (
+            <p className="text-gray-400 italic text-sm">
+              {activeTab === "mine"
+                ? "Aún no has creado recetas. Crea la primera con el botón “Nueva receta”."
+                : "No hay recetas que coincidan con el filtro."}
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {displayedRecipes.map((r) => {
+                const badge = getRecipeBadge(r);
+                const mine = user && r.created_by_user_id === user.id;
+                const summary = recipeSummaries[r.id];
+                const isExpanded = expandedRecipeId === r.id;
 
-              const servingsNum = r.total_servings || 1;
-              const totalKcal = summary ? summary.totalCalories : 0;
-              const kcalPerServing =
-                servingsNum > 0 ? totalKcal / servingsNum : totalKcal;
+                const servingsNum = r.total_servings || 1;
+                const totalKcal = summary ? summary.totalCalories : 0;
+                const kcalPerServing =
+                  servingsNum > 0 ? totalKcal / servingsNum : totalKcal;
 
-              const totalGrams = summary ? summary.totalGrams : 0;
-              const gramsPerServing =
-                servingsNum > 0 ? totalGrams / servingsNum : totalGrams;
+                const totalGrams = summary ? summary.totalGrams : 0;
+                const gramsPerServing =
+                  servingsNum > 0 ? totalGrams / servingsNum : totalGrams;
 
-              return (
-                <div
-                  key={r.id}
-                  className="w-full bg-gray-800 border border-gray-700 rounded px-4 py-3"
-                >
-                  <div className="flex justify-between items-start gap-3">
-                    <div>
-                      <p className="font-semibold text-white">{r.name}</p>
-                      {r.description && (
-                        <p className="text-xs text-gray-400 line-clamp-2">
-                          {r.description}
-                        </p>
-                      )}
-                      {summary && (
-                        <p className="text-[11px] text-gray-400 mt-1">
-                          {Math.round(totalKcal)} kcal totales
-                          {servingsNum > 0 && (
-                            <>
-                              {" "}· {servingsNum} porciones (
-                              {Math.round(kcalPerServing)} kcal / porción)
-                            </>
-                          )}
-                          {totalGrams > 0 && (
-                            <>
-                              {" "}· {Math.round(totalGrams)} g totales
-                              {servingsNum > 0 && (
-                                <> (~{Math.round(gramsPerServing)} g / porción)</>
-                              )}
-                            </>
-                          )}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <span className="text-xs px-2 py-1 rounded bg-gray-700 text-gray-200">
-                        {badge}
-                      </span>
-                      <div className="flex gap-2 mt-1">
-                        <button
-                          type="button"
-                          onClick={() => toggleExpand(r.id)}
-                          className="text-[11px] px-2 py-1 rounded border border-gray-600 hover:bg-gray-700"
-                        >
-                          {isExpanded ? "Ocultar resumen" : "Ver resumen"}
-                        </button>
-                        {mine && (
-                          <button
-                            type="button"
-                            onClick={() => handleEditRecipe(r)}
-                            className="text-[11px] px-2 py-1 rounded border border-blue-500 text-blue-200 hover:bg-blue-600/20"
-                          >
-                            Editar
-                          </button>
+                return (
+                  <div
+                    key={r.id}
+                    className="w-full bg-gray-800 border border-gray-700 rounded px-4 py-3"
+                  >
+                    <div className="flex justify-between items-start gap-3">
+                      <div>
+                        <p className="font-semibold text-white">{r.name}</p>
+                        {r.description && (
+                          <p className="text-xs text-gray-400 line-clamp-2">
+                            {r.description}
+                          </p>
+                        )}
+                        {summary && (
+                          <p className="text-[11px] text-gray-400 mt-1">
+                            {Math.round(totalKcal)} kcal totales
+                            {servingsNum > 0 && (
+                              <>
+                                {" "}· {servingsNum} porciones (
+                                {Math.round(kcalPerServing)} kcal / porción)
+                              </>
+                            )}
+                            {totalGrams > 0 && (
+                              <>
+                                {" "}· {Math.round(totalGrams)} g totales
+                                {servingsNum > 0 && (
+                                  <> (~{Math.round(gramsPerServing)} g / porción)</>
+                                )}
+                              </>
+                            )}
+                          </p>
                         )}
                       </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="text-xs px-2 py-1 rounded bg-gray-700 text-gray-200">
+                          {badge}
+                        </span>
+                        <div className="flex gap-2 mt-1">
+                          <button
+                            type="button"
+                            onClick={() => toggleExpand(r.id)}
+                            className="text-[11px] px-2 py-1 rounded border border-gray-600 hover:bg-gray-700"
+                          >
+                            {isExpanded ? "Ocultar resumen" : "Ver resumen"}
+                          </button>
+                          {mine && (
+                            <button
+                              type="button"
+                              onClick={() => handleEditRecipe(r)}
+                              className="text-[11px] px-2 py-1 rounded border border-blue-500 text-blue-200 hover:bg-blue-600/20"
+                            >
+                              Editar
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Panel desplegable con resumen */}
-                  {isExpanded && (
-                    <div className="mt-3 border-t border-gray-700 pt-3 text-xs">
-                      {!summary || summary.ingredients.length === 0 ? (
-                        <p className="text-gray-400">
-                          Esta receta aún no tiene ingredientes o no se pudo
-                          calcular el resumen.
-                        </p>
-                      ) : (
-                        <>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-                            <div className="border border-gray-700 rounded p-2">
-                              <p className="text-[11px] text-gray-400">
-                                Kcal totales
-                              </p>
-                              <p className="text-sm font-semibold">
-                                {Math.round(summary.totalCalories)} kcal
-                              </p>
-                            </div>
-                            <div className="border border-gray-700 rounded p-2">
-                              <p className="text-[11px] text-gray-400">
-                                Proteína
-                              </p>
-                              <p className="text-sm font-semibold">
-                                {summary.totalProtein.toFixed(1)} g
-                              </p>
-                            </div>
-                            <div className="border border-gray-700 rounded p-2">
-                              <p className="text-[11px] text-gray-400">
-                                Carbohidratos
-                              </p>
-                              <p className="text-sm font-semibold">
-                                {summary.totalCarbs.toFixed(1)} g
-                              </p>
-                            </div>
-                            <div className="border border-gray-700 rounded p-2">
-                              <p className="text-[11px] text-gray-400">
-                                Grasas
-                              </p>
-                              <p className="text-sm font-semibold">
-                                {summary.totalFat.toFixed(1)} g
-                              </p>
-                            </div>
-                          </div>
-
-                          <p className="font-semibold mb-1">Ingredientes</p>
-                          <div className="space-y-1">
-                            {summary.ingredients.map((ing) => (
-                              <div
-                                key={ing.id}
-                                className="flex justify-between items-center border border-gray-700 rounded px-2 py-1"
-                              >
-                                <div>
-                                  <p className="text-xs font-medium">
-                                    {ing.foodName}
-                                  </p>
-                                  <p className="text-[11px] text-gray-400">
-                                    {ing.grams} g
-                                  </p>
-                                </div>
-                                <p className="text-[11px] text-gray-300">
-                                  {Math.round(ing.calories)} kcal
+                    {/* Panel desplegable con resumen */}
+                    {isExpanded && (
+                      <div className="mt-3 border-t border-gray-700 pt-3 text-xs">
+                        {!summary || summary.ingredients.length === 0 ? (
+                          <p className="text-gray-400">
+                            Esta receta aún no tiene ingredientes o no se pudo
+                            calcular el resumen.
+                          </p>
+                        ) : (
+                          <>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
+                              <div className="border border-gray-700 rounded p-2">
+                                <p className="text-[11px] text-gray-400">
+                                  Kcal totales
+                                </p>
+                                <p className="text-sm font-semibold">
+                                  {Math.round(summary.totalCalories)} kcal
                                 </p>
                               </div>
-                            ))}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                              <div className="border border-gray-700 rounded p-2">
+                                <p className="text-[11px] text-gray-400">
+                                  Proteína
+                                </p>
+                                <p className="text-sm font-semibold">
+                                  {summary.totalProtein.toFixed(1)} g
+                                </p>
+                              </div>
+                              <div className="border border-gray-700 rounded p-2">
+                                <p className="text-[11px] text-gray-400">
+                                  Carbohidratos
+                                </p>
+                                <p className="text-sm font-semibold">
+                                  {summary.totalCarbs.toFixed(1)} g
+                                </p>
+                              </div>
+                              <div className="border border-gray-700 rounded p-2">
+                                <p className="text-[11px] text-gray-400">
+                                  Grasas
+                                </p>
+                                <p className="text-sm font-semibold">
+                                  {summary.totalFat.toFixed(1)} g
+                                </p>
+                              </div>
+                            </div>
 
-      {/* Formulario de receta */}
-      <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
-        <h2 className="text-xl font-semibold mb-3">
-          {editingRecipe ? "Editar receta" : "Nueva receta"}
-        </h2>
-
-        {editingRecipe && !isOwner && (
-          <p className="text-xs text-yellow-400 mb-3">
-            Esta receta es pública y fue creada por otro usuario. Solo puedes
-            verla, no editarla.
-          </p>
-        )}
-
-        <div className="flex flex-col gap-3">
-          <div>
-            <label className="block text-sm mb-1">Nombre</label>
-            <input
-              type="text"
-              value={recipeName}
-              onChange={(e) => setRecipeName(e.target.value)}
-              disabled={!!editingRecipe && !isOwner}
-              className="w-full p-2 border border-gray-700 bg-gray-800 rounded text-gray-100"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm mb-1">Descripción (opcional)</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              disabled={!!editingRecipe && !isOwner}
-              className="w-full p-2 border border-gray-700 bg-gray-800 rounded text-gray-100 text-sm"
-              rows={3}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm mb-1">Porciones totales</label>
-              <input
-                type="number"
-                min={1}
-                value={totalServings}
-                onChange={(e) => setTotalServings(e.target.value)}
-                disabled={!!editingRecipe && !isOwner}
-                className="w-full p-2 border border-gray-700 bg-gray-800 rounded text-gray-100"
-              />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">
-                Texto de porción (ej: “1 plato”, “1 sandwich”)
-              </label>
-              <input
-                type="text"
-                value={servingLabel}
-                onChange={(e) => setServingLabel(e.target.value)}
-                disabled={!!editingRecipe && !isOwner}
-                className="w-full p-2 border border-gray-700 bg-gray-800 rounded text-gray-100"
-              />
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 mt-2">
-            <input
-              id="is_public"
-              type="checkbox"
-              checked={isPublic}
-              disabled={!!editingRecipe && !isOwner}
-              onChange={(e) => setIsPublic(e.target.checked)}
-              className="h-4 w-4"
-            />
-            <label htmlFor="is_public" className="text-sm">
-              Hacer receta pública (visible para todos)
-            </label>
-          </div>
-
-          {/* Ingredientes */}
-          <div className="mt-4">
-            <div className="flex justify-between items-center mb-2">
-              <h3 className="font-semibold text-sm">Ingredientes</h3>
-              {(!editingRecipe || isOwner) && (
-                <button
-                  type="button"
-                  onClick={addIngredientRow}
-                  className="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded"
-                >
-                  + Agregar ingrediente
-                </button>
-              )}
-            </div>
-
-            {ingredients.length === 0 ? (
-              <p className="text-xs text-gray-400">
-                Aún no has agregado ingredientes.
-              </p>
-            ) : (
-              <div className="space-y-2">
-                {ingredients.map((ing) => {
-                  const food = foods.find((f) => f.id === ing.food_id);
-                  return (
-                    <div
-                      key={ing.localId}
-                      className="flex flex-col gap-1 border border-gray-700 rounded p-2 bg-gray-850"
-                    >
-                      <div className="flex gap-2">
-                        <select
-                          value={ing.food_id}
-                          disabled={!!editingRecipe && !isOwner}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setIngredients((prev) =>
-                              prev.map((item) =>
-                                item.localId === ing.localId
-                                  ? { ...item, food_id: value }
-                                  : item
-                              )
-                            );
-                          }}
-                          className="flex-1 p-2 border border-gray-700 bg-gray-900 rounded text-gray-100 text-sm"
-                        >
-                          <option value="">Selecciona alimento</option>
-                          {foods.map((f) => (
-                            <option key={f.id} value={f.id}>
-                              {f.name}
-                            </option>
-                          ))}
-                        </select>
-
-                        <input
-                          type="number"
-                          min={0}
-                          step="1"
-                          placeholder="g"
-                          value={ing.grams}
-                          disabled={!!editingRecipe && !isOwner}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setIngredients((prev) =>
-                              prev.map((item) =>
-                                item.localId === ing.localId
-                                  ? { ...item, grams: value }
-                                  : item
-                              )
-                            );
-                          }}
-                          className="w-24 p-2 border border-gray-700 bg-gray-900 rounded text-gray-100 text-sm"
-                        />
-
-                        {(!editingRecipe || isOwner) && (
-                          <button
-                            type="button"
-                            onClick={() => removeIngredientRow(ing.localId)}
-                            className="text-xs text-red-400 hover:text-red-300 px-2"
-                          >
-                            Eliminar
-                          </button>
+                            <p className="font-semibold mb-1">Ingredientes</p>
+                            <div className="space-y-1">
+                              {summary.ingredients.map((ing) => (
+                                <div
+                                  key={ing.id}
+                                  className="flex justify-between items-center border border-gray-700 rounded px-2 py-1"
+                                >
+                                  <div>
+                                    <p className="text-xs font-medium">
+                                      {ing.foodName}
+                                    </p>
+                                    <p className="text-[11px] text-gray-400">
+                                      {ing.grams} g
+                                    </p>
+                                  </div>
+                                  <p className="text-[11px] text-gray-300">
+                                    {Math.round(ing.calories)} kcal
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </>
                         )}
                       </div>
-
-                      {food && ing.grams && !isNaN(parseFloat(ing.grams)) && (
-                        <p className="text-[11px] text-gray-400">
-                          {(() => {
-                            const grams = parseFloat(ing.grams);
-                            const factor = grams / 100;
-                            const kcal = Math.round(food.calories * factor);
-                            return `${grams} g · aprox. ${kcal} kcal`;
-                          })()}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Botones */}
-          {(!editingRecipe || isOwner) && (
-            <div className="mt-4 flex gap-2">
-              <button
-                onClick={handleSaveRecipe}
-                disabled={saving}
-                className="bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white px-4 py-2 rounded"
-              >
-                {saving
-                  ? "Guardando..."
-                  : editingRecipe
-                  ? "Guardar cambios"
-                  : "Crear receta"}
-              </button>
-              {editingRecipe && (
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="px-4 py-2 rounded border border-gray-600 text-sm"
-                >
-                  Cancelar edición
-                </button>
-              )}
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
       </div>
+
+      {/* MODAL Crear / Editar receta */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg max-w-lg w-full max-h-[90vh] overflow-y-auto p-4 relative">
+            <button
+              type="button"
+              onClick={() => {
+                setIsModalOpen(false);
+                resetForm();
+              }}
+              className="absolute top-2 right-2 text-gray-400 hover:text-gray-200 text-sm"
+            >
+              ✕
+            </button>
+
+            <h2 className="text-xl font-semibold mb-3">
+              {editingRecipe ? "Editar receta" : "Nueva receta"}
+            </h2>
+
+            {editingRecipe && !isOwner && (
+              <p className="text-xs text-yellow-400 mb-3">
+                Esta receta es pública y fue creada por otro usuario. Solo
+                puedes verla, no editarla.
+              </p>
+            )}
+
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="block text-sm mb-1">Nombre</label>
+                <input
+                  type="text"
+                  value={recipeName}
+                  onChange={(e) => setRecipeName(e.target.value)}
+                  disabled={!!editingRecipe && !isOwner}
+                  className="w-full p-2 border border-gray-700 bg-gray-800 rounded text-gray-100"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm mb-1">
+                  Descripción (opcional)
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  disabled={!!editingRecipe && !isOwner}
+                  className="w-full p-2 border border-gray-700 bg-gray-800 rounded text-gray-100 text-sm"
+                  rows={3}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm mb-1">
+                    Porciones totales
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={totalServings}
+                    onChange={(e) => setTotalServings(e.target.value)}
+                    disabled={!!editingRecipe && !isOwner}
+                    className="w-full p-2 border border-gray-700 bg-gray-800 rounded text-gray-100"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm mb-1">
+                    Texto de porción (ej: “plato”, “sandwich”)
+                  </label>
+                  <input
+                    type="text"
+                    value={servingLabel}
+                    onChange={(e) => setServingLabel(e.target.value)}
+                    disabled={!!editingRecipe && !isOwner}
+                    className="w-full p-2 border border-gray-700 bg-gray-800 rounded text-gray-100"
+                  />
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Ej: si pones “plato” y porciones = 4 → “Pensada para 4
+                    platos”.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 mt-2">
+                <input
+                  id="is_public"
+                  type="checkbox"
+                  checked={isPublic}
+                  disabled={!!editingRecipe && !isOwner}
+                  onChange={(e) => setIsPublic(e.target.checked)}
+                  className="h-4 w-4"
+                />
+                <label htmlFor="is_public" className="text-sm">
+                  Hacer receta pública (visible para todos)
+                </label>
+              </div>
+
+              {/* Ingredientes */}
+              <div className="mt-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-semibold text-sm">Ingredientes</h3>
+                  {(!editingRecipe || isOwner) && (
+                    <button
+                      type="button"
+                      onClick={addIngredientRow}
+                      className="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded"
+                    >
+                      + Agregar ingrediente
+                    </button>
+                  )}
+                </div>
+
+                {ingredients.length === 0 ? (
+                  <p className="text-xs text-gray-400">
+                    Aún no has agregado ingredientes.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {ingredients.map((ing) => {
+                      const food = foods.find((f) => f.id === ing.food_id);
+                      return (
+                        <div
+                          key={ing.localId}
+                          className="flex flex-col gap-1 border border-gray-700 rounded p-2 bg-gray-850"
+                        >
+                          <div className="flex gap-2">
+                            <select
+                              value={ing.food_id}
+                              disabled={!!editingRecipe && !isOwner}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setIngredients((prev) =>
+                                  prev.map((item) =>
+                                    item.localId === ing.localId
+                                      ? { ...item, food_id: value }
+                                      : item
+                                  )
+                                );
+                              }}
+                              className="flex-1 p-2 border border-gray-700 bg-gray-900 rounded text-gray-100 text-sm"
+                            >
+                              <option value="">Selecciona alimento</option>
+                              {foods.map((f) => (
+                                <option key={f.id} value={f.id}>
+                                  {f.name}
+                                </option>
+                              ))}
+                            </select>
+
+                            <input
+                              type="number"
+                              min={0}
+                              step="1"
+                              placeholder="g"
+                              value={ing.grams}
+                              disabled={!!editingRecipe && !isOwner}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setIngredients((prev) =>
+                                  prev.map((item) =>
+                                    item.localId === ing.localId
+                                      ? { ...item, grams: value }
+                                      : item
+                                  )
+                                );
+                              }}
+                              className="w-24 p-2 border border-gray-700 bg-gray-900 rounded text-gray-100 text-sm"
+                            />
+
+                            {(!editingRecipe || isOwner) && (
+                              <button
+                                type="button"
+                                onClick={() => removeIngredientRow(ing.localId)}
+                                className="text-xs text-red-400 hover:text-red-300 px-2"
+                              >
+                                Eliminar
+                              </button>
+                            )}
+                          </div>
+
+                          {food &&
+                            ing.grams &&
+                            !isNaN(parseFloat(ing.grams)) && (
+                              <p className="text-[11px] text-gray-400">
+                                {(() => {
+                                  const grams = parseFloat(ing.grams);
+                                  const factor = grams / 100;
+                                  const kcal = Math.round(
+                                    food.calories * factor
+                                  );
+                                  return `${grams} g · aprox. ${kcal} kcal`;
+                                })()}
+                              </p>
+                            )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Botones */}
+              {(!editingRecipe || isOwner) && (
+                <div className="mt-4 flex gap-2 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsModalOpen(false);
+                      resetForm();
+                    }}
+                    className="px-4 py-2 rounded border border-gray-600 text-sm"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleSaveRecipe}
+                    disabled={saving}
+                    className="bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white px-4 py-2 rounded text-sm"
+                  >
+                    {saving
+                      ? "Guardando..."
+                      : editingRecipe
+                      ? "Guardar cambios"
+                      : "Crear receta"}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
