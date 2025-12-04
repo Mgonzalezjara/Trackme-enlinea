@@ -34,35 +34,57 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <nav className="flex-1 space-y-2">
           <Link
             href="/dashboard/profile"
-            className={`block px-4 py-2 rounded ${pathname === "/dashboard/profile" ? "bg-blue-600 text-white" : "hover:bg-gray-700"}`}
+            className={`block px-4 py-2 rounded ${
+              pathname === "/dashboard/profile" ? "bg-blue-600 text-white" : "hover:bg-gray-700"
+            }`}
             onClick={() => setSidebarOpen(false)}
           >
             Perfil
           </Link>
           <Link
             href="/dashboard/food-management"
-            className={`block px-4 py-2 rounded ${pathname === "/dashboard/food-management" ? "bg-blue-600 text-white" : "hover:bg-gray-700"}`}
+            className={`block px-4 py-2 rounded ${
+              pathname === "/dashboard/food-management" ? "bg-blue-600 text-white" : "hover:bg-gray-700"
+            }`}
             onClick={() => setSidebarOpen(false)}
           >
             Gestión de alimentos
           </Link>
           <Link
             href="/dashboard/foods"
-            className={`block px-4 py-2 rounded ${pathname === "/dashboard/foods" ? "bg-blue-600 text-white" : "hover:bg-gray-700"}`}
+            className={`block px-4 py-2 rounded ${
+              pathname === "/dashboard/foods" ? "bg-blue-600 text-white" : "hover:bg-gray-700"
+            }`}
             onClick={() => setSidebarOpen(false)}
           >
             Alimentos
           </Link>
+
+          {/* 🔥 Nuevo ítem de menú: Recetas */}
+          <Link
+            href="/dashboard/recipes"
+            className={`block px-4 py-2 rounded ${
+              pathname === "/dashboard/recipes" ? "bg-blue-600 text-white" : "hover:bg-gray-700"
+            }`}
+            onClick={() => setSidebarOpen(false)}
+          >
+            Recetas
+          </Link>
+
           <Link
             href="/dashboard/daily"
-            className={`block px-4 py-2 rounded ${pathname === "/dashboard/daily" ? "bg-blue-600 text-white" : "hover:bg-gray-700"}`}
+            className={`block px-4 py-2 rounded ${
+              pathname === "/dashboard/daily" ? "bg-blue-600 text-white" : "hover:bg-gray-700"
+            }`}
             onClick={() => setSidebarOpen(false)}
           >
             Comidas de hoy
           </Link>
           <Link
             href="/dashboard/progress"
-            className={`block px-4 py-2 rounded ${pathname === "/dashboard/progress" ? "bg-blue-600 text-white" : "hover:bg-gray-700"}`}
+            className={`block px-4 py-2 rounded ${
+              pathname === "/dashboard/progress" ? "bg-blue-600 text-white" : "hover:bg-gray-700"
+            }`}
             onClick={() => setSidebarOpen(false)}
           >
             Progreso

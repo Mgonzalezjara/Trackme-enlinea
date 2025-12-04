@@ -7,12 +7,15 @@ interface FoodItem {
   foods: {
     id: string;
     name: string;
-    calories: number;
+    calories: number; // por 100 g
     protein: number;
     fat: number;
     carbs: number;
+    reference_portion_name?: string | null;
+    reference_portion_grams?: number | null;
   };
-  quantity: number;
+  quantity: number;  // gramos o nº de porciones (según is_portion)
+  is_portion: boolean;
   calories: number;
   protein: number;
   fat: number;
@@ -32,11 +35,13 @@ interface Goal {
 interface Food {
   id: string;
   name: string;
-  calories: number;
+  calories: number; // por 100 g
   protein: number;
   fat: number;
   carbs: number;
   category_id: string;
+  reference_portion_name?: string | null;
+  reference_portion_grams?: number | null;
 }
 
 interface Category {
@@ -56,6 +61,8 @@ interface User {
   email: string;
 }
 
+type EntryMode = "grams" | "portion";
+
 export default function DailyPage() {
   const [user, setUser] = useState<User | null>(null);
   const [goal, setGoal] = useState<Goal | null>(null);
@@ -67,6 +74,7 @@ export default function DailyPage() {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedFood, setSelectedFood] = useState("");
   const [quantity, setQuantity] = useState("");
+  const [entryMode, setEntryMode] = useState<EntryMode>("grams");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loading, setLoading] = useState(true);
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
@@ -122,6 +130,16 @@ export default function DailyPage() {
   async function handleAddMeal() {
     if (!selectedFood || !quantity) return alert("Selecciona alimento y cantidad.");
 
+    const food = foods.find((f) => f.id === selectedFood);
+    if (!food) return alert("Alimento no encontrado.");
+    if (!preview) return alert("No se pudo calcular la vista previa.");
+
+    const quantityNumber = parseFloat(quantity);
+    if (isNaN(quantityNumber) || quantityNumber <= 0) {
+      return alert("Ingresa una cantidad válida.");
+    }
+
+    // Buscar si ya existe comida de ese tipo ese día
     const { data: existingMeal } = await supabase
       .from("daily_meals")
       .select("*")
@@ -144,11 +162,12 @@ export default function DailyPage() {
       {
         meal_id: mealId,
         food_id: selectedFood,
-        quantity: parseFloat(quantity),
-        calories: preview!.calories,
-        protein: preview!.protein,
-        fat: preview!.fat,
-        carbs: preview!.carbs,
+        quantity: quantityNumber,                 // gramos o nº de porciones
+        is_portion: entryMode === "portion",     // <- clave
+        calories: preview.calories,
+        protein: preview.protein,
+        fat: preview.fat,
+        carbs: preview.carbs,
       },
     ]);
 
@@ -161,15 +180,26 @@ export default function DailyPage() {
     if (!meal) return;
 
     for (const item of meal.meal_foods) {
-      const factor = item.quantity / 100;
+      const fd = item.foods;
+      let grams: number;
+
+      if (item.is_portion && fd.reference_portion_grams) {
+        grams = item.quantity * fd.reference_portion_grams;
+      } else {
+        grams = item.quantity; // asumimos gramos
+      }
+
+      const factor = grams / 100;
+
       await supabase
         .from("meal_foods")
         .update({
-          quantity: item.quantity,
-          calories: Math.round(item.foods.calories * factor),
-          protein: +(item.foods.protein * factor).toFixed(1),
-          fat: +(item.foods.fat * factor).toFixed(1),
-          carbs: +(item.foods.carbs * factor).toFixed(1),
+          quantity: item.quantity, // sigue siendo gramos o porciones según is_portion
+          is_portion: item.is_portion,
+          calories: Math.round(fd.calories * factor),
+          protein: +(fd.protein * factor).toFixed(1),
+          fat: +(fd.fat * factor).toFixed(1),
+          carbs: +(fd.carbs * factor).toFixed(1),
         })
         .eq("id", item.id);
     }
@@ -181,39 +211,72 @@ export default function DailyPage() {
   async function handleDeleteFood(foodId: string) {
     if (!confirm("¿Eliminar este alimento?")) return;
     await supabase.from("meal_foods").delete().eq("id", foodId);
-    await fetchMeals(user!.id, selectedDate);
+    if (user) await fetchMeals(user.id, selectedDate);
   }
 
   function resetForm() {
     setSelectedCategory("");
     setSelectedFood("");
     setQuantity("");
+    setEntryMode("grams");
     setPreview(null);
   }
 
+  // Vista previa para el formulario (agregar)
   useEffect(() => {
     if (!selectedFood || !quantity) {
       setPreview(null);
       return;
     }
     const food = foods.find((f) => f.id === selectedFood);
-    if (!food) return;
-    const factor = parseFloat(quantity) / 100;
+    if (!food) {
+      setPreview(null);
+      return;
+    }
+
+    const qty = parseFloat(quantity);
+    if (isNaN(qty) || qty <= 0) {
+      setPreview(null);
+      return;
+    }
+
+    let grams: number;
+    if (entryMode === "portion") {
+      if (!food.reference_portion_grams) {
+        setPreview(null);
+        return;
+      }
+      grams = qty * food.reference_portion_grams;
+    } else {
+      grams = qty;
+    }
+
+    const factor = grams / 100;
+
     setPreview({
       calories: Math.round(food.calories * factor),
       protein: +(food.protein * factor).toFixed(1),
       fat: +(food.fat * factor).toFixed(1),
       carbs: +(food.carbs * factor).toFixed(1),
     });
-  }, [selectedFood, quantity, foods]);
+  }, [selectedFood, quantity, foods, entryMode]);
 
-  const getEditPreview = (food: FoodItem) => {
-    const factor = food.quantity / 100;
+  // Vista previa de edición (cada ítem ya guardado)
+  const getEditPreview = (foodItem: FoodItem) => {
+    const fd = foodItem.foods;
+    let grams: number;
+    if (foodItem.is_portion && fd.reference_portion_grams) {
+      grams = foodItem.quantity * fd.reference_portion_grams;
+    } else {
+      grams = foodItem.quantity;
+    }
+    const factor = grams / 100;
+
     return {
-      calories: Math.round(food.foods.calories * factor),
-      protein: +(food.foods.protein * factor).toFixed(1),
-      fat: +(food.foods.fat * factor).toFixed(1),
-      carbs: +(food.foods.carbs * factor).toFixed(1),
+      calories: Math.round(fd.calories * factor),
+      protein: +(fd.protein * factor).toFixed(1),
+      fat: +(fd.fat * factor).toFixed(1),
+      carbs: +(fd.carbs * factor).toFixed(1),
     };
   };
 
@@ -223,6 +286,9 @@ export default function DailyPage() {
   );
 
   const today = new Date().toISOString().split("T")[0];
+  const selectedFoodObj = foods.find((f) => f.id === selectedFood);
+  const selectedFoodHasPortion =
+    !!selectedFoodObj && !!selectedFoodObj.reference_portion_grams;
 
   if (loading) return <p className="text-gray-300 p-6">Cargando...</p>;
 
@@ -242,16 +308,29 @@ export default function DailyPage() {
       </div>
 
       <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 mb-6">
-        <p><span className="font-bold">Meta:</span> {goal ? `${Math.round(goal.daily_calories)} kcal` : "Sin meta"}</p>
-        <p><span className="font-bold">Consumidas:</span> {Math.round(totalCalories)} kcal</p>
-        <p><span className="font-bold">Restantes:</span> {goal ? `${Math.max(goal.daily_calories - totalCalories, 0)} kcal` : "N/A"}</p>
+        <p>
+          <span className="font-bold">Meta:</span>{" "}
+          {goal ? `${Math.round(goal.daily_calories)} kcal` : "Sin meta"}
+        </p>
+        <p>
+          <span className="font-bold">Consumidas:</span>{" "}
+          {Math.round(totalCalories)} kcal
+        </p>
+        <p>
+          <span className="font-bold">Restantes:</span>{" "}
+          {goal
+            ? `${Math.max(goal.daily_calories - totalCalories, 0)} kcal`
+            : "N/A"}
+        </p>
       </div>
 
+      {/* Listado de comidas */}
       {meals.map((meal) => (
         <div key={meal.id} className="mb-4 bg-gray-800 p-4 rounded">
           <div className="flex justify-between items-center mb-2">
-            {/* ✅ Mostrar tipo de comida en español */}
-            <h3 className="font-semibold text-green-400">{mealTypeLabels[meal.meal_type] || meal.meal_type}</h3>
+            <h3 className="font-semibold text-green-400">
+              {mealTypeLabels[meal.meal_type] || meal.meal_type}
+            </h3>
             {editingMealId === meal.id ? (
               <button
                 onClick={() => handleSaveEdit(meal.id)}
@@ -268,9 +347,19 @@ export default function DailyPage() {
               </button>
             )}
           </div>
+
           <ul className="text-sm text-gray-200">
-            {meal.meal_foods.map((f: FoodItem) => {
+            {meal.meal_foods.map((f) => {
               const editPreview = getEditPreview(f);
+
+              const unitLabel = f.is_portion
+                ? f.foods.reference_portion_name
+                  ? `${f.quantity} ${f.foods.reference_portion_name}${
+                      f.quantity > 1 ? "s" : ""
+                    }`
+                  : `${f.quantity} porciones`
+                : `${f.quantity} g`;
+
               return (
                 <li key={f.id} className="flex flex-col gap-1 mb-2">
                   {editingMealId === meal.id ? (
@@ -288,7 +377,9 @@ export default function DailyPage() {
                                   ? {
                                       ...m,
                                       meal_foods: m.meal_foods.map((item) =>
-                                        item.id === f.id ? { ...item, quantity: newQty } : item
+                                        item.id === f.id
+                                          ? { ...item, quantity: newQty }
+                                          : item
                                       ),
                                     }
                                   : m
@@ -297,10 +388,14 @@ export default function DailyPage() {
                           }}
                           className="w-16 p-1 border border-gray-600 bg-gray-700 rounded text-right"
                         />
-                        <span className="text-gray-400">g</span>
+                        <span className="text-gray-400">
+                          {f.is_portion ? "porc." : "g"}
+                        </span>
                       </div>
                       <div className="text-xs text-gray-400 ml-1">
-                        Vista previa: {editPreview.calories} kcal | P: {editPreview.protein}g | G: {editPreview.fat}g | C: {editPreview.carbs}g
+                        Vista previa: {editPreview.calories} kcal | P:{" "}
+                        {editPreview.protein}g | G: {editPreview.fat}g | C:{" "}
+                        {editPreview.carbs}g
                       </div>
                       <button
                         onClick={() => handleDeleteFood(f.id)}
@@ -311,7 +406,10 @@ export default function DailyPage() {
                     </>
                   ) : (
                     <div className="flex justify-between">
-                      <span>{f.foods.name} - {f.quantity} g ({Math.round(f.calories)} kcal)</span>
+                      <span>
+                        {f.foods.name} - {unitLabel} (
+                        {Math.round(f.calories)} kcal)
+                      </span>
                       <button
                         onClick={() => handleDeleteFood(f.id)}
                         className="ml-3 text-red-500 hover:underline text-xs"
@@ -348,41 +446,106 @@ export default function DailyPage() {
               onChange={(e) => {
                 setSelectedCategory(e.target.value);
                 setSelectedFood("");
+                setEntryMode("grams");
+                setPreview(null);
+                setQuantity("");
               }}
               className="p-2 border border-gray-700 bg-gray-900 rounded text-gray-100"
             >
               <option value="">Selecciona categoría</option>
               {categories.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
               ))}
             </select>
 
             <select
               value={selectedFood}
-              onChange={(e) => setSelectedFood(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                setSelectedFood(value);
+                setQuantity("");
+                setPreview(null);
+                const f = foods.find((food) => food.id === value);
+                if (!f || !f.reference_portion_grams) {
+                  setEntryMode("grams");
+                }
+              }}
               className="p-2 border border-gray-700 bg-gray-900 rounded text-gray-100"
               disabled={!selectedCategory}
             >
               <option value="">Selecciona alimento</option>
-              {foods.filter((f) => f.category_id === selectedCategory).map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name} ({f.calories} kcal/100g)
-                </option>
-              ))}
+              {foods
+                .filter((f) => f.category_id === selectedCategory)
+                .map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name} ({f.calories} kcal/100g)
+                  </option>
+                ))}
             </select>
 
-            <input
-              type="number"
-              placeholder="Cantidad (g)"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              className="p-2 border border-gray-700 bg-gray-900 rounded text-gray-100"
-            />
+            {/* Toggle gramos / porciones (solo si el alimento tiene porción de referencia) */}
+            {selectedFoodObj && selectedFoodHasPortion && (
+              <div>
+                <div className="flex gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setEntryMode("grams")}
+                    className={`px-3 py-1 rounded text-sm ${
+                      entryMode === "grams"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-700 text-gray-200"
+                    }`}
+                  >
+                    Gramos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEntryMode("portion")}
+                    className={`px-3 py-1 rounded text-sm ${
+                      entryMode === "portion"
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-700 text-gray-200"
+                    }`}
+                  >
+                    Porciones
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400">
+                  1 {selectedFoodObj.reference_portion_name} ={" "}
+                  {selectedFoodObj.reference_portion_grams} g
+                </p>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                placeholder={
+                  entryMode === "grams"
+                    ? "Cantidad (g)"
+                    : "Cantidad (porciones)"
+                }
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                className="p-2 border border-gray-700 bg-gray-900 rounded text-gray-100 flex-1"
+              />
+              <span className="text-gray-400 text-sm">
+                {entryMode === "grams" ? "g" : "porc."}
+              </span>
+            </div>
 
             {preview && (
               <div className="bg-gray-700 p-3 rounded text-sm text-gray-100">
-                <p>Vista previa: <span className="font-bold">{preview.calories} kcal</span></p>
-                <p>Proteínas: {preview.protein} g | Grasas: {preview.fat} g | Carbohidratos: {preview.carbs} g</p>
+                <p>
+                  Vista previa:{" "}
+                  <span className="font-bold">{preview.calories} kcal</span>
+                </p>
+                <p>
+                  Proteínas: {preview.protein} g | Grasas: {preview.fat} g |
+                  Carbohidratos: {preview.carbs} g
+                </p>
               </div>
             )}
 
