@@ -10,24 +10,58 @@ interface LoginFormProps {
 export default function LoginForm({ initialMode }: LoginFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isRegistering, setIsRegistering] = useState(initialMode === "register");
+  const [isRegistering, setIsRegistering] = useState(
+    initialMode === "register"
+  );
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!email || !password) return;
 
-    if (isRegistering) {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { emailRedirectTo: `${window.location.origin}/login` },
-      });
-      if (error) return alert(error.message);
-      alert("Registro exitoso. Revisa tu correo y confirma tu cuenta.");
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) return alert(error.message);
-      router.push("/dashboard");
+    setLoading(true);
+
+    try {
+      // 🔹 Limpia cualquier sesión/refresh token local antes de operar
+      await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+
+      if (isRegistering) {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: `${window.location.origin}/login` },
+        });
+
+        if (error) {
+          alert(error.message);
+          return;
+        }
+
+        alert(
+          "Registro exitoso. Revisa tu correo y confirma tu cuenta antes de iniciar sesión."
+        );
+      } else {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (error) {
+          alert(error.message);
+          return;
+        }
+
+        // Opcional: chequeo extra de sesión
+        if (!data.session) {
+          alert("No se pudo iniciar sesión. Intenta nuevamente.");
+          return;
+        }
+
+        router.push("/dashboard");
+      }
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -45,6 +79,7 @@ export default function LoginForm({ initialMode }: LoginFormProps) {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            disabled={loading}
           />
           <input
             type="password"
@@ -53,19 +88,27 @@ export default function LoginForm({ initialMode }: LoginFormProps) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
+            disabled={loading}
           />
           <button
             type="submit"
-            className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded transition"
+            disabled={loading}
+            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white p-3 rounded transition"
           >
-            {isRegistering ? "Registrarse" : "Iniciar sesión"}
+            {loading
+              ? "Procesando..."
+              : isRegistering
+              ? "Registrarse"
+              : "Iniciar sesión"}
           </button>
         </form>
         <p className="mt-4 text-center text-gray-400">
           {isRegistering ? "¿Ya tienes cuenta?" : "¿No tienes cuenta?"}{" "}
           <button
+            type="button"
             onClick={() => setIsRegistering(!isRegistering)}
             className="text-blue-400 hover:text-blue-300 underline"
+            disabled={loading}
           >
             {isRegistering ? "Inicia sesión" : "Regístrate"}
           </button>
